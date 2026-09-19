@@ -8,6 +8,8 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  app.enableCors();
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -22,7 +24,7 @@ async function bootstrap() {
   const config = new DocumentBuilder()
     .setTitle('Closette API')
     .setDescription(
-      'Backend REST API for the Closette digital wardrobe platform',
+      'Closette Phase 1: the phone guides capture and uploads 30–60 frames; this API plus the Python worker reconstruct the 3D foot.',
     )
     .setVersion('0.1')
     .addBearerAuth()
