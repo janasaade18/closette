@@ -82,7 +82,7 @@ export class CreateScanDto {
     description: 'Scan one foot at a time. Start with the left foot.',
   })
   @IsEnum(FootSide)
-  footSide: FootSide;
+  footSide!: FootSide;
 
   @ApiPropertyOptional({ type: DeviceDto })
   @IsOptional()

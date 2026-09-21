@@ -16,16 +16,31 @@ export type CaptureGuide = {
   required: boolean;
 };
 
-export const MIN_ACCEPTED_FRAMES = 30;
+export const MIN_ACCEPTED_FRAMES = 5;
 export const MAX_ACCEPTED_FRAMES = 60;
-export const MIN_FRAMES_PER_VIEW = 6;
+export const MIN_FRAMES_PER_VIEW = 1;
+
+/** Phone outline (cadre) fit thresholds — client turns red → green, then captures. */
+export const OUTLINE_FIT = {
+  colorNotReady: '#E53935',
+  colorReady: '#43A047',
+  requireFootVisible: true,
+  /** Fraction of the frame occupied by the foot (0–1). */
+  minFootAreaRatio: 0.28,
+  maxFootAreaRatio: 0.78,
+  minSharpness: 80,
+  /** Hold still 2 seconds with foot in the outline before capture. */
+  stableMs: 2000,
+  autoCaptureOnReady: true,
+  advanceToNextViewAfterCapture: true,
+} as const;
 
 export const FOOT_CAPTURE_GUIDES: CaptureGuide[] = [
   {
     view: 'top',
     title: 'Place your foot inside the outline',
     instruction:
-      'Look straight down. Keep the whole foot inside the outline. Move slowly.',
+      'Get close. Fill the outline with only your foot (no calf). Hold still until green.',
     order: 1,
     required: true,
   },

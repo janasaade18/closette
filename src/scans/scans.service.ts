@@ -11,6 +11,7 @@ import {
   MAX_ACCEPTED_FRAMES,
   MIN_ACCEPTED_FRAMES,
   MIN_FRAMES_PER_VIEW,
+  OUTLINE_FIT,
   REQUIRED_FOOT_VIEWS,
 } from './constants/capture-guides';
 import { CreateScanDto } from './dto/create-scan.dto';
@@ -28,13 +29,14 @@ export class ScansService {
 
   getGuides() {
     return {
-      role: 'The mobile app only shows these guides, filters frames, and uploads. All 3D reconstruction runs on the server.',
+      role: 'The mobile app shows the outline (cadre), filters frames, and uploads. All 3D reconstruction runs on the server.',
       oneFootAtATime: true,
       startWith: 'left',
       minAcceptedFrames: MIN_ACCEPTED_FRAMES,
       maxAcceptedFrames: MAX_ACCEPTED_FRAMES,
       minFramesPerView: MIN_FRAMES_PER_VIEW,
       requiredViews: REQUIRED_FOOT_VIEWS,
+      outlineFit: OUTLINE_FIT,
       guides: FOOT_CAPTURE_GUIDES,
     };
   }

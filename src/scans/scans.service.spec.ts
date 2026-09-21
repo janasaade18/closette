@@ -70,7 +70,10 @@ describe('ScansService', () => {
   it('returns the Phase 1 capture protocol', () => {
     const guides = service.getGuides();
     expect(guides.startWith).toBe('left');
-    expect(guides.minAcceptedFrames).toBe(30);
+    expect(guides.minAcceptedFrames).toBe(5);
+    expect(guides.outlineFit.colorNotReady).toBe('#E53935');
+    expect(guides.outlineFit.colorReady).toBe('#43A047');
+    expect(guides.outlineFit.autoCaptureOnReady).toBe(true);
     expect(guides.requiredViews).toEqual([
       'top',
       'front',

@@ -1,7 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 import { FootSide } from '../dto/create-scan.dto';
-import { FootCaptureView } from '../constants/capture-guides';
+import { FOOT_CAPTURE_VIEWS } from '../constants/capture-guides';
+import type { FootCaptureView } from '../constants/capture-guides';
 
 export type ScanStatus = 'capturing' | 'processing' | 'ready' | 'failed';
 
@@ -66,8 +67,8 @@ export class ScanFrame {
   @Prop({ required: true, type: Number })
   index: number;
 
-  @Prop({ required: true, type: String })
-  view: FootCaptureView;
+  @Prop({ required: true, type: String, enum: FOOT_CAPTURE_VIEWS })
+  view!: FootCaptureView;
 
   @Prop({ required: true, type: String })
   storagePath: string;

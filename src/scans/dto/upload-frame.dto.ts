@@ -9,10 +9,8 @@ import {
   IsOptional,
   ValidateNested,
 } from 'class-validator';
-import {
-  FOOT_CAPTURE_VIEWS,
-  FootCaptureView,
-} from '../constants/capture-guides';
+import { FOOT_CAPTURE_VIEWS } from '../constants/capture-guides';
+import type { FootCaptureView } from '../constants/capture-guides';
 
 export class CameraPoseDto {
   @ApiPropertyOptional({ type: [Number] })
@@ -41,7 +39,7 @@ const toJson = ({ value }: { value: unknown }): unknown => {
 export class UploadFrameDto {
   @ApiProperty({ enum: FOOT_CAPTURE_VIEWS, example: 'top' })
   @IsIn(FOOT_CAPTURE_VIEWS)
-  view: FootCaptureView;
+  view!: FootCaptureView;
 
   @ApiPropertyOptional()
   @IsOptional()
