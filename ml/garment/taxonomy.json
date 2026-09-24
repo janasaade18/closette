@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "task": "garment-type",
+  "groups": [
+    {
+      "id": "top",
+      "types": ["shirt", "t-shirt", "sweater", "cardigan", "vest"]
+    },
+    {
+      "id": "bottom",
+      "types": ["pants", "shorts", "skirt", "tights"]
+    },
+    {
+      "id": "one-piece",
+      "types": ["dress", "jumpsuit"]
+    },
+    {
+      "id": "outerwear",
+      "types": ["jacket", "coat"]
+    },
+    {
+      "id": "footwear",
+      "types": ["shoe"]
+    },
+    {
+      "id": "accessories",
+      "types": ["hat", "bag", "belt", "scarf", "glasses", "tie"]
+    }
+  ],
+  "sources": {
+    "deepfashion2": {
+      "short sleeve top": "t-shirt",
+      "long sleeve top": "shirt",
+      "short sleeve outwear": "jacket",
+      "long sleeve outwear": "jacket",
+      "vest": "vest",
+      "shorts": "shorts",
+      "trousers": "pants",
+      "skirt": "skirt",
+      "short sleeve dress": "dress",
+      "long sleeve dress": "dress",
+      "vest dress": "dress",
+      "sling dress": "dress"
+    },
+    "fashionpedia": {
+      "shirt, blouse": "shirt",
+      "top, t-shirt, sweatshirt": "t-shirt",
+      "sweater": "sweater",
+      "cardigan": "cardigan",
+      "jacket": "jacket",
+      "vest": "vest",
+      "pants": "pants",
+      "shorts": "shorts",
+      "skirt": "skirt",
+      "coat": "coat",
+      "dress": "dress",
+      "jumpsuit": "jumpsuit",
+      "glasses": "glasses",
+      "hat": "hat",
+      "tie": "tie",
+      "belt": "belt",
+      "tights, stockings": "tights",
+      "shoe": "shoe",
+      "bag, wallet": "bag",
+      "scarf": "scarf"
+    }
+  }
+}

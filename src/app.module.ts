@@ -4,6 +4,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { SupabaseModule } from './supabase/supabase.module';
+import { GarmentsModule } from './garments/garments.module';
 import { ScansModule } from './scans/scans.module';
 
 @Module({
@@ -21,6 +22,7 @@ import { ScansModule } from './scans/scans.module';
     }),
     SupabaseModule,
     ScansModule,
+    GarmentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
