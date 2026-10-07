@@ -1,40 +1,79 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/mongoose';
 import { SupabaseService } from '../supabase/supabase.service';
 import { FootSide } from './dto/create-scan.dto';
+import { FootScanRepository } from './foot-scan.repository';
+import { FootReconstruction, FootScan } from './foot-model.types';
 import { ReconstructionService } from './reconstruction.service';
-import { Scan } from './schemas/scan.schema';
 import { ScansService } from './scans.service';
 
 describe('ScansService', () => {
   let service: ScansService;
-  let scanModel: {
+  let footScans: {
     create: jest.Mock;
     findById: jest.Mock;
+    addFrame: jest.Mock;
+    setStatus: jest.Mock;
+    saveReconstruction: jest.Mock;
   };
   let supabaseService: { uploadFootFrame: jest.Mock };
   let reconstructionService: { enqueue: jest.Mock };
+  const scans = new Map<string, FootScan>();
 
-  const savedScan = (overrides: Record<string, unknown> = {}) => {
-    const scan = {
-      id: '64b7f2c0a1b2c3d4e5f60789',
-      footSide: FootSide.Left,
-      status: 'capturing',
-      frames: [] as unknown[],
-      reconstruction: { status: 'idle', glbUrl: null, objUrl: null },
-      error: undefined,
-      save: jest.fn().mockResolvedValue(undefined),
-      get: jest.fn(() => new Date('2026-09-19')),
-      ...overrides,
-    };
-    return scan;
-  };
+  const savedScan = (overrides: Partial<FootScan> = {}): FootScan => ({
+    id: '64b7f2c0-a1b2-41d4-85f6-078978901234',
+    profileId: '11111111-1111-4111-8111-111111111111',
+    footSide: FootSide.Left,
+    status: 'capturing',
+    device: null,
+    cameraIntrinsics: null,
+    scaleReference: { type: 'calibration_mat', markerDistanceMm: 200 },
+    frames: [],
+    reconstruction: { status: 'idle', glbUrl: null, objUrl: null },
+    error: null,
+    createdAt: '2026-09-19T00:00:00.000Z',
+    ...overrides,
+  });
 
   beforeEach(async () => {
-    scanModel = {
-      create: jest.fn(),
-      findById: jest.fn(),
+    scans.clear();
+    footScans = {
+      create: jest.fn((input: { footSide: FootSide }) => {
+        const scan = savedScan({ footSide: input.footSide });
+        scans.set(scan.id, scan);
+        return Promise.resolve(scan);
+      }),
+      findById: jest.fn((id: string) => Promise.resolve(scans.get(id) ?? null)),
+      addFrame: jest.fn((id: string, frame: FootScan['frames'][number]) => {
+        const scan = scans.get(id);
+        if (!scan) {
+          return Promise.resolve(null);
+        }
+        scan.frames.push({
+          id: `frame-${scan.frames.length}`,
+          url: 'https://cdn.example/frame.jpg',
+          storagePath: 'path.jpg',
+          ...frame,
+        });
+        return Promise.resolve(scan);
+      }),
+      setStatus: jest.fn((id: string, status: FootScan['status']) => {
+        const scan = scans.get(id);
+        if (scan) {
+          scan.status = status;
+        }
+        return Promise.resolve(scan);
+      }),
+      saveReconstruction: jest.fn(
+        (id: string, reconstruction: FootReconstruction) => {
+          const scan = scans.get(id);
+          if (scan) {
+            scan.reconstruction = reconstruction;
+            scan.status = reconstruction.glbUrl ? 'ready' : 'processing';
+          }
+          return Promise.resolve(scan);
+        },
+      ),
     };
     supabaseService = {
       uploadFootFrame: jest
@@ -42,23 +81,18 @@ describe('ScansService', () => {
         .mockResolvedValue('https://cdn.example/frame.jpg'),
     };
     reconstructionService = {
-      enqueue: jest
-        .fn()
-        .mockImplementation((scan: { reconstruction: unknown }) => {
-          scan.reconstruction = {
-            status: 'needs_colmap',
-            glbUrl: null,
-            objUrl: null,
-            message: 'queued',
-          };
-          return Promise.resolve();
-        }),
+      enqueue: jest.fn().mockResolvedValue({
+        status: 'needs_colmap',
+        glbUrl: null,
+        objUrl: null,
+        message: 'queued',
+      }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ScansService,
-        { provide: getModelToken(Scan.name), useValue: scanModel },
+        { provide: FootScanRepository, useValue: footScans },
         { provide: SupabaseService, useValue: supabaseService },
         { provide: ReconstructionService, useValue: reconstructionService },
       ],
@@ -84,15 +118,11 @@ describe('ScansService', () => {
   });
 
   it('creates a one-foot capturing session', async () => {
-    const created = savedScan();
-    scanModel.create.mockResolvedValue(created);
-
     const result = await service.create({ footSide: FootSide.Left });
 
-    expect(scanModel.create).toHaveBeenCalledWith(
+    expect(footScans.create).toHaveBeenCalledWith(
       expect.objectContaining({
         footSide: FootSide.Left,
-        status: 'capturing',
       }),
     );
     expect(result.status).toBe('capturing');
@@ -100,15 +130,14 @@ describe('ScansService', () => {
   });
 
   it('throws when a scan does not exist', async () => {
-    scanModel.findById.mockResolvedValue(null);
     await expect(
-      service.findOne('64b7f2c0a1b2c3d4e5f60789'),
+      service.findOne('64b7f2c0-a1b2-41d4-85f6-078978901234'),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('uploads an accepted frame', async () => {
     const scan = savedScan();
-    scanModel.findById.mockResolvedValue(scan);
+    scans.set(scan.id, scan);
 
     const result = await service.addFrame(
       scan.id,
@@ -125,23 +154,28 @@ describe('ScansService', () => {
     expect(result.progress.accepted).toBe(1);
   });
 
-  it('rejects complete before 30 covered frames', async () => {
-    scanModel.findById.mockResolvedValue(savedScan());
+  it('rejects complete before enough covered frames', async () => {
+    const scan = savedScan();
+    scans.set(scan.id, scan);
 
-    await expect(
-      service.complete('64b7f2c0a1b2c3d4e5f60789'),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.complete(scan.id)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 
   it('enqueues reconstruction after a full capture', async () => {
     const views = ['top', 'front', 'left', 'right', 'heel'] as const;
-    const frames = Array.from({ length: 30 }, (_, index) => ({
-      index,
-      view: views[index % 5],
-      accepted: true,
-    }));
-    const scan = savedScan({ frames });
-    scanModel.findById.mockResolvedValue(scan);
+    const scan = savedScan({
+      frames: Array.from({ length: 5 }, (_, index) => ({
+        id: `frame-${index}`,
+        index,
+        view: views[index],
+        storagePath: `${index}.jpg`,
+        url: `https://cdn.example/${index}.jpg`,
+        accepted: true,
+      })),
+    });
+    scans.set(scan.id, scan);
 
     const result = await service.complete(scan.id);
 

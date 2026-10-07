@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ScanDocument } from './schemas/scan.schema';
+import { FootReconstruction, FootScan } from './foot-model.types';
 
 @Injectable()
 export class ReconstructionService {
@@ -12,23 +12,22 @@ export class ReconstructionService {
    * Server-side 3D pipeline. The phone never reconstructs.
    * Worker later runs: segmentation → poses → COLMAP / MVS → foot.glb
    */
-  async enqueue(scan: ScanDocument): Promise<void> {
+  async enqueue(scan: FootScan): Promise<FootReconstruction> {
     const workerUrl = this.configService.get<string>(
       'RECONSTRUCTION_WORKER_URL',
     );
 
-    scan.reconstruction = {
+    const pending: FootReconstruction = {
       status: 'queued',
       glbUrl: null,
       objUrl: null,
       message: workerUrl
         ? 'Queued for the reconstruction worker'
-        : 'Frames stored. Start closette/reconstruction and set RECONSTRUCTION_WORKER_URL to run photogrammetry.',
+        : 'Frames stored. Start the Python worker and set RECONSTRUCTION_WORKER_URL to run photogrammetry.',
     };
 
     if (!workerUrl) {
-      scan.reconstruction.status = 'needs_colmap';
-      return;
+      return { ...pending, status: 'needs_colmap' };
     }
 
     const payload = {
@@ -70,22 +69,27 @@ export class ReconstructionService {
         message?: string;
       };
 
-      scan.reconstruction.status =
-        result.status === 'ready' ? 'ready' : 'needs_colmap';
-      scan.reconstruction.workDir = result.work_dir;
-      scan.reconstruction.glbUrl = result.glb_url ?? null;
-      scan.reconstruction.objUrl = result.obj_url ?? null;
-      scan.reconstruction.message =
-        result.message ?? 'Worker prepared the scan for photogrammetry';
+      return {
+        status: result.status === 'ready' ? 'ready' : 'needs_colmap',
+        glbUrl: result.glb_url ?? null,
+        objUrl: result.obj_url ?? null,
+        workDir: result.work_dir,
+        message:
+          result.message ?? 'Worker prepared the scan for photogrammetry',
+      };
     } catch (error) {
       this.logger.warn(
         `Reconstruction worker unavailable: ${
           error instanceof Error ? error.message : 'unknown error'
         }`,
       );
-      scan.reconstruction.status = 'needs_colmap';
-      scan.reconstruction.message =
-        'Could not reach the Python worker. Frames are saved; run reconstruction later.';
+      return {
+        status: 'needs_colmap',
+        glbUrl: null,
+        objUrl: null,
+        message:
+          'Could not reach the Python worker. Frames are saved; run reconstruction later.',
+      };
     }
   }
 }
