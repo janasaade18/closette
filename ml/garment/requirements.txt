@@ -1,4 +1,9 @@
 torch
 torchvision
-ultralytics
+transformers
 pillow
+numpy
+fastapi
+uvicorn
+python-multipart
+httpx
