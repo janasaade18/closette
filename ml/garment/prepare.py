@@ -40,10 +40,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Prepare Closette garment datasets")
     parser.add_argument("--deepfashion2", type=Path, help="Extracted DeepFashion2 root")
     parser.add_argument("--fashionpedia", type=Path, help="Extracted Fashionpedia root")
+    parser.add_argument(
+        "--clothing-dataset",
+        type=Path,
+        help="Alexey Grigorev clothing-dataset root (images/ + images.csv, CC0)",
+    )
     parser.add_argument("--out", type=Path, default=DATASETS)
     args = parser.parse_args()
-    if not args.deepfashion2 and not args.fashionpedia:
-        parser.error("Pass --deepfashion2 and/or --fashionpedia")
+    if not args.deepfashion2 and not args.fashionpedia and not args.clothing_dataset:
+        parser.error("Pass --deepfashion2 and/or --fashionpedia and/or --clothing-dataset")
 
     taxonomy = load_taxonomy()
     samples: list[dict] = []
@@ -51,6 +56,8 @@ def main() -> None:
         samples.extend(_deepfashion2_samples(args.deepfashion2, taxonomy))
     if args.fashionpedia:
         samples.extend(_fashionpedia_samples(args.fashionpedia, taxonomy))
+    if args.clothing_dataset:
+        samples.extend(_clothing_dataset_samples(args.clothing_dataset, taxonomy))
     if not samples:
         raise SystemExit("No mapped garments found. Check the dataset paths and annotation files.")
 
@@ -122,6 +129,51 @@ def _fashionpedia_samples(root: Path, taxonomy: dict) -> list[dict]:
                     _xywh_to_xyxy(ann.get("bbox")),
                     taxonomy,
                 )
+    return samples
+
+
+def _clothing_dataset_samples(root: Path, taxonomy: dict) -> list[dict]:
+    """Full-frame single-item photos from the CC0 clothing-dataset."""
+    catalog = root / "images.csv"
+    image_dir = root / "images"
+    if not catalog.is_file() or not image_dir.is_dir():
+        raise SystemExit(f"clothing-dataset needs images.csv and images/ under {root}")
+    samples: list[dict] = []
+    with catalog.open(encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    # Deterministic hold-out: every 10th mapped adult photo is validation.
+    kept = 0
+    for row in rows:
+        if str(row.get("kids", "")).strip().lower() in {"true", "1", "yes"}:
+            continue
+        raw = str(row.get("label", "")).strip().lower()
+        image_id = str(row.get("image", "")).strip()
+        if not image_id:
+            continue
+        image_path = image_dir / f"{image_id}.jpg"
+        if not image_path.is_file():
+            continue
+        label = map_source_label("clothing-dataset", raw, taxonomy)
+        quality = source_quality("clothing-dataset", raw, taxonomy)
+        if not label or not quality:
+            continue
+        with Image.open(image_path) as image:
+            width, height = image.size
+        box = (0.0, 0.0, float(width), float(height))
+        split = "val" if kept % 10 == 0 else "train"
+        kept += 1
+        samples.append(
+            {
+                "split": split,
+                "image": image_path,
+                "label": label,
+                "box": box,
+                "source": "clothing-dataset",
+                "source_label": raw,
+                "label_quality": quality,
+                "source_id": f"clothing-dataset:{image_path.resolve()}",
+            }
+        )
     return samples
 
 

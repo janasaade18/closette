@@ -50,8 +50,9 @@ class TaxonomyTest(unittest.TestCase):
                 (weak if quality == "weak" else direct).add(mapped)
         for name, label in self.taxonomy["labels"].items():
             if label["supervision"] == "direct":
+                # At least one clean source row. Extra weak rows from broader
+                # dataset classes are allowed beside that.
                 self.assertIn(name, direct)
-                self.assertNotIn(name, weak)
             elif label["supervision"] == "weak":
                 self.assertIn(name, weak)
                 self.assertNotIn(name, direct)

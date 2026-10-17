@@ -102,6 +102,113 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(reviewed["reason"], "ambiguous_pair")
         self.assertEqual(reviewed["subcategory"], "shirt")
 
+    def test_skirt_crop_called_dress_uses_the_full_photo(self) -> None:
+        class CropSensitive(FakeClassifier):
+            def predict(self, image: Image.Image) -> Scores:
+                self.calls += 1
+                if image.size == (80, 100):
+                    return Scores({"skirt": 0.79, "dress": 0.07}, None, self.name, self.model_id)
+                return Scores({"dress": 0.43, "skirt": 0.22}, None, self.name, self.model_id)
+
+        pipeline = GarmentPipeline(CropSensitive({}), FakeSegmenter(_mask(5)))
+        result = pipeline.predict_image(_photo(), include_mask=False)
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["category"], "bottoms")
+        self.assertEqual(result["subcategory"], "skirt")
+        self.assertIsNone(result["reason"])
+        self.assertIsNotNone(result["bbox"])
+        self.assertEqual(pipeline.classifier.calls, 2)
+
+    def test_close_dress_and_skirt_scores_rescore_the_full_photo(self) -> None:
+        class CropSensitive(FakeClassifier):
+            def predict(self, image: Image.Image) -> Scores:
+                self.calls += 1
+                if image.size == (80, 100):
+                    return Scores({"skirt": 0.62, "dress": 0.2}, None, self.name, self.model_id)
+                return Scores({"dress": 0.41, "skirt": 0.38, "shorts": 0.05}, None, self.name, self.model_id)
+
+        pipeline = GarmentPipeline(CropSensitive({}), FakeSegmenter(_mask(5)))
+        result = pipeline.predict_image(_photo(), include_mask=False)
+        self.assertEqual(result["subcategory"], "skirt")
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(pipeline.classifier.calls, 2)
+
+    def test_dress_skirt_still_close_after_rescore_asks_for_review(self) -> None:
+        class CropSensitive(FakeClassifier):
+            def predict(self, image: Image.Image) -> Scores:
+                self.calls += 1
+                if image.size == (80, 100):
+                    return Scores({"dress": 0.42, "skirt": 0.39}, None, self.name, self.model_id)
+                return Scores({"dress": 0.4, "skirt": 0.37}, None, self.name, self.model_id)
+
+        pipeline = GarmentPipeline(CropSensitive({}), FakeSegmenter(_mask(5)))
+        result = pipeline.predict_image(_photo(), include_mask=False)
+        self.assertEqual(result["status"], "review")
+        self.assertEqual(result["reason"], "ambiguous_pair")
+        self.assertIn(result["subcategory"], {"dress", "skirt"})
+        self.assertEqual(pipeline.classifier.calls, 2)
+
+    def test_tail_dress_skirt_scores_do_not_replace_the_crop(self) -> None:
+        class CropSensitive(FakeClassifier):
+            def predict(self, image: Image.Image) -> Scores:
+                self.calls += 1
+                if image.size == (80, 100):
+                    return Scores({"gloves": 0.32, "skirt": 0.28, "dress": 0.05}, None, self.name, self.model_id)
+                return Scores(
+                    {"t-shirt": 0.25, "shirt": 0.14, "dress": 0.09, "skirt": 0.08},
+                    None,
+                    self.name,
+                    self.model_id,
+                )
+
+        pipeline = GarmentPipeline(CropSensitive({}), FakeSegmenter(_mask(4)))
+        result = pipeline.predict_image(_photo(), include_mask=False)
+        self.assertEqual(result["subcategory"], "t-shirt")
+        self.assertEqual(result["reason"], "low_confidence")
+        self.assertEqual(pipeline.classifier.calls, 1)
+
+    def test_unrelated_crop_confusion_does_not_force_a_full_rescore(self) -> None:
+        class CropSensitive(FakeClassifier):
+            def predict(self, image: Image.Image) -> Scores:
+                self.calls += 1
+                if image.size == (80, 100):
+                    return Scores({"jumpsuit": 0.97, "tank-top": 0.01}, None, self.name, self.model_id)
+                return Scores({"tank-top": 0.9, "dress": 0.04}, None, self.name, self.model_id)
+
+        pipeline = GarmentPipeline(CropSensitive({}), FakeSegmenter(_mask(7)))
+        result = pipeline.predict_image(_photo(), include_mask=False)
+        self.assertEqual(result["subcategory"], "tank-top")
+        self.assertEqual(result["reason"], "localization_disagrees")
+        self.assertEqual(pipeline.classifier.calls, 2)
+
+    def test_pants_crop_of_a_jumpsuit_uses_the_full_photo(self) -> None:
+        class CropSensitive(FakeClassifier):
+            def predict(self, image: Image.Image) -> Scores:
+                self.calls += 1
+                if image.size == (80, 100):
+                    return Scores({"jumpsuit": 0.99, "trousers": 0.002}, None, self.name, self.model_id)
+                return Scores({"trousers": 0.59, "chinos": 0.36, "jumpsuit": 0.003}, None, self.name, self.model_id)
+
+        pipeline = GarmentPipeline(CropSensitive({}), FakeSegmenter(_mask(6)))
+        result = pipeline.predict_image(_photo(), include_mask=False)
+        self.assertEqual(result["subcategory"], "jumpsuit")
+        self.assertEqual(result["category"], "one-piece")
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(pipeline.classifier.calls, 2)
+
+    def test_folded_shirt_crop_called_tank_uses_the_full_photo(self) -> None:
+        class CropSensitive(FakeClassifier):
+            def predict(self, image: Image.Image) -> Scores:
+                self.calls += 1
+                if image.size == (80, 100):
+                    return Scores({"t-shirt": 0.81, "tank-top": 0.19}, None, self.name, self.model_id)
+                return Scores({"tank-top": 0.98, "t-shirt": 0.02}, None, self.name, self.model_id)
+
+        pipeline = GarmentPipeline(CropSensitive({}), FakeSegmenter(_mask(7)))
+        result = pipeline.predict_image(_photo(), include_mask=False)
+        self.assertEqual(result["subcategory"], "t-shirt")
+        self.assertEqual(pipeline.classifier.calls, 2)
+
     def test_localization_disagreement_is_review_not_a_rewritten_label(self) -> None:
         pipeline = GarmentPipeline(
             FakeClassifier({"sneakers": 0.88, "boots": 0.05}),

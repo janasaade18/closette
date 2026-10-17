@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 from collections import Counter
 from pathlib import Path
 
@@ -51,6 +52,7 @@ def main() -> None:
 
     torch.manual_seed(0)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"device {device}", flush=True)
     train_dir = args.data / "train"
     val_dir = args.data / "val"
     if not train_dir.is_dir():
@@ -58,10 +60,26 @@ def main() -> None:
 
     train_set = GarmentFolder(train_dir, _train_transform())
     val_set = GarmentFolder(val_dir, _eval_transform()) if val_dir.is_dir() else None
-    train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True, num_workers=0)
-    val_loader = (
-        DataLoader(val_set, batch_size=args.batch_size, shuffle=False, num_workers=0) if val_set else None
+    use_gpu = device.type == "cuda"
+    train_loader = DataLoader(
+        train_set,
+        batch_size=args.batch_size,
+        shuffle=True,
+        num_workers=2 if use_gpu else 0,
+        pin_memory=use_gpu,
     )
+    val_loader = (
+        DataLoader(
+            val_set,
+            batch_size=args.batch_size,
+            shuffle=False,
+            num_workers=2 if use_gpu else 0,
+            pin_memory=use_gpu,
+        )
+        if val_set
+        else None
+    )
+    print(f"train images {len(train_set)}  val images {0 if val_set is None else len(val_set)}", flush=True)
 
     model = _build(args.backbone, len(train_set.classes))
     model.to(device)
@@ -140,9 +158,11 @@ def _run_epoch(model, loader, criterion, optimizer, device, train: bool) -> floa
     model.train(train)
     correct = 0
     total = 0
-    for images, targets in loader:
-        images = images.to(device)
-        targets = targets.to(device)
+    steps = len(loader)
+    started = time.perf_counter()
+    for step, (images, targets) in enumerate(loader, start=1):
+        images = images.to(device, non_blocking=True)
+        targets = targets.to(device, non_blocking=True)
         with torch.set_grad_enabled(train):
             logits = model(images)
             loss = criterion(logits, targets)
@@ -152,6 +172,14 @@ def _run_epoch(model, loader, criterion, optimizer, device, train: bool) -> floa
                 optimizer.step()
         correct += (logits.argmax(dim=1) == targets).sum().item()
         total += targets.size(0)
+        if train and (step == 1 or step % 20 == 0 or step == steps):
+            elapsed = time.perf_counter() - started
+            rate = total / elapsed if elapsed else 0.0
+            left = (steps - step) / (step / elapsed) if step and elapsed else 0.0
+            print(
+                f"  batch {step}/{steps}  {rate:.0f} img/s  about {left / 60:.0f} min left this epoch",
+                flush=True,
+            )
     return correct / total if total else 0.0
 
 

@@ -50,10 +50,12 @@ class GarmentPipeline:
         bbox = None
         mask = None
         coarse_groups = None
+        coarse_label = None
         if localization is not None:
             bbox = [int(value) for value in localization.bbox]
             crop = image.crop(padded_box(localization.bbox, image.width, image.height))
             coarse_groups = localization.groups
+            coarse_label = localization.coarse_label
             if include_mask:
                 from inference.localize import encode_rle
 
@@ -63,11 +65,16 @@ class GarmentPipeline:
             bbox = None
             mask = None
             coarse_groups = None
+            coarse_label = None
 
         try:
             scores = self.classifier.predict(crop)
         except Exception as exc:
             raise ModelError("The classifier failed to score this image.") from exc
+        if crop is not image:
+            scores = self._resolve_skirt_dress(image, scores, coarse_label, coarse_groups or set())
+            scores = self._resolve_pants_as_jumpsuit(image, scores, coarse_label)
+            scores = self._resolve_hidden_sleeves(image, scores)
 
         return self._decide(
             scores,
@@ -88,6 +95,143 @@ class GarmentPipeline:
         except Exception:
             logger.warning("segmentation failed", exc_info=True)
             return None, False
+
+    def _resolve_skirt_dress(
+        self,
+        image: Image.Image,
+        crop_scores: Scores,
+        coarse_label: str | None,
+        coarse_groups: set[str],
+    ) -> Scores:
+        """Waist-cut skirt crops often look like dresses.
+
+        1. Detect dress/skirt conflict on the crop.
+        2. Rescore the full photo.
+        3. Keep the view with stronger skirt-vs-dress evidence.
+        Review is left to _decide when the pair stays within the margin.
+        """
+        if not self._skirt_dress_conflict(crop_scores, coarse_label, coarse_groups):
+            return crop_scores
+        full_scores = self._full_scores(image)
+        if full_scores is None:
+            return crop_scores
+        return self._stronger_skirt_dress(crop_scores, full_scores, coarse_groups)
+
+    def _skirt_dress_conflict(
+        self,
+        scores: Scores,
+        coarse_label: str | None,
+        coarse_groups: set[str],
+    ) -> bool:
+        if not scores.by_label:
+            return False
+        ranked = sorted(scores.by_label.items(), key=lambda item: item[1], reverse=True)
+        top_label, top_score = ranked[0]
+        second_label, second_score = ranked[1] if len(ranked) > 1 else (None, 0.0)
+        margin = float(self.policy["ambiguous_margin"])
+        hard_floor = float(self.policy["hard_floor"])
+        skirt = float(scores.by_label.get("skirt", 0.0))
+
+        # Only the leading names count. A close dress/skirt pair buried under
+        # another label must not throw away that label.
+        if {top_label, second_label} == {"dress", "skirt"} and abs(top_score - second_score) <= margin:
+            return True
+        # A skirt or bottoms region called a dress or other one-piece is the waist-cut case.
+        if coarse_label == "Skirt" and self._category_of(scores) == "one-piece":
+            return True
+        if "bottoms" in coarse_groups and top_label == "dress" and skirt >= hard_floor:
+            return True
+        return False
+
+    def _stronger_skirt_dress(
+        self,
+        crop_scores: Scores,
+        full_scores: Scores,
+        coarse_groups: set[str],
+    ) -> Scores:
+        hard_floor = float(self.policy["hard_floor"])
+        crop_peak = max(crop_scores.by_label.values(), default=0.0)
+        full_peak = max(full_scores.by_label.values(), default=0.0)
+        if full_peak < hard_floor:
+            return crop_scores
+
+        crop_evidence = float(crop_scores.by_label.get("skirt", 0.0)) - float(
+            crop_scores.by_label.get("dress", 0.0)
+        )
+        full_evidence = float(full_scores.by_label.get("skirt", 0.0)) - float(
+            full_scores.by_label.get("dress", 0.0)
+        )
+        full_category = self._category_of(full_scores)
+        crop_category = self._category_of(crop_scores)
+
+        if full_evidence > crop_evidence:
+            return full_scores
+        if crop_evidence > full_evidence:
+            return crop_scores
+        if coarse_groups and full_category in coarse_groups and crop_category not in coarse_groups:
+            return full_scores
+        if coarse_groups and crop_category in coarse_groups and full_category not in coarse_groups:
+            return crop_scores
+        return full_scores if full_peak >= crop_peak else crop_scores
+
+    def _resolve_pants_as_jumpsuit(
+        self,
+        image: Image.Image,
+        crop_scores: Scores,
+        coarse_label: str | None,
+    ) -> Scores:
+        """A jumpsuit cropped to the legs looks like trousers.
+
+        Use the full photo when that photo is a confident jumpsuit.
+        """
+        if coarse_label != "Pants":
+            return crop_scores
+        top_label, top_score = self._top(crop_scores)
+        if top_label not in {"trousers", "jeans", "chinos"}:
+            return crop_scores
+        full_scores = self._full_scores(image)
+        if full_scores is None:
+            return crop_scores
+        full_label, full_score = self._top(full_scores)
+        abstain = float(self.policy["abstain_below"])
+        if full_label == "jumpsuit" and full_score >= abstain and full_score > top_score:
+            return full_scores
+        return crop_scores
+
+    def _resolve_hidden_sleeves(self, image: Image.Image, crop_scores: Scores) -> Scores:
+        """A folded t-shirt crop hides the sleeves and looks like a tank top.
+
+        The full photo is used when it clearly says t-shirt.
+        """
+        top_label, _top_score = self._top(crop_scores)
+        if top_label != "tank-top":
+            return crop_scores
+        full_scores = self._full_scores(image)
+        if full_scores is None:
+            return crop_scores
+        full_label, full_score = self._top(full_scores)
+        if full_label == "t-shirt" and full_score >= float(self.policy["abstain_below"]):
+            return full_scores
+        return crop_scores
+
+    def _full_scores(self, image: Image.Image) -> Scores | None:
+        try:
+            return self.classifier.predict(image)
+        except Exception:
+            logger.warning("full-frame rescore failed", exc_info=True)
+            return None
+
+    def _top(self, scores: Scores) -> tuple[str | None, float]:
+        if not scores.by_label:
+            return None, 0.0
+        label, score = max(scores.by_label.items(), key=lambda item: item[1])
+        return label, float(score)
+
+    def _category_of(self, scores: Scores) -> str | None:
+        label, _score = self._top(scores)
+        if label is None:
+            return None
+        return self.groups.get(label)
 
     def _decide(
         self,
@@ -128,7 +272,9 @@ class GarmentPipeline:
             reason = "ambiguous_pair"
         if coarse_groups is not None and category not in coarse_groups:
             status = "review"
-            reason = "localization_disagrees"
+            # Keep a more specific reason (e.g. dress vs skirt) when one exists.
+            if reason is None:
+                reason = "localization_disagrees"
 
         alternatives = [
             {

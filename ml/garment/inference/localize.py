@@ -53,10 +53,12 @@ GARMENT_LABELS = {
 SHOE_LABELS = {"Left-shoe", "Right-shoe"}
 
 # Coarse mask labels that may agree with a Closette category.
+# A skirt region is a bottom. Dress has its own mask class, so a skirt
+# outline must not count as agreement with a dress prediction.
 COARSE_GROUPS = {
     "Hat": {"accessories"},
     "Upper-clothes": {"tops", "outerwear"},
-    "Skirt": {"bottoms", "one-piece"},
+    "Skirt": {"bottoms"},
     "Pants": {"bottoms", "one-piece"},
     "Dress": {"one-piece"},
     "Belt": {"accessories"},

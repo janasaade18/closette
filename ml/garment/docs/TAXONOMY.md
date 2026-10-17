@@ -37,6 +37,8 @@ Each label has a one-sentence definition and a FashionCLIP prompt in `taxonomy.j
 
 **Dress vs jumpsuit vs romper.** A dress has a skirt. A jumpsuit has long pants. A romper has shorts. Romper has no clean public-dataset class, so it stays zero-shot.
 
+**Dress vs skirt.** A dress has a bodice. A skirt starts at the waist. A skirt crop that cuts off the waist often looks like a dress. The pipeline rescored the full photo when those scores conflict, and asks for review when dress and skirt stay within 0.08.
+
 **Footwear.** A label that only says "shoe" is skipped. It is not stored as sneakers. A boot covers the ankle. Sandals are open. Heels have a raised heel. Flats do not.
 
 **Vest and cardigan.** DeepFashion2 vest, Fashionpedia vest, and Fashionpedia cardigan are skipped. They are not forced into tank-top or sweater.
