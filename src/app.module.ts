@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { SupabaseModule } from './supabase/supabase.module';
 import { ScansModule } from './scans/scans.module';
+import { ShoesModule } from './shoes/shoes.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { ScansModule } from './scans/scans.module';
     }),
     SupabaseModule,
     ScansModule,
+    ShoesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
