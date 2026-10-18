@@ -69,8 +69,13 @@ export class ReconstructionService {
         message?: string;
       };
 
+      const status =
+        result.status === 'ready' || result.status === 'failed'
+          ? result.status
+          : 'needs_colmap';
+
       return {
-        status: result.status === 'ready' ? 'ready' : 'needs_colmap',
+        status,
         glbUrl: result.glb_url ?? null,
         objUrl: result.obj_url ?? null,
         workDir: result.work_dir,

@@ -64,15 +64,31 @@ export class CameraIntrinsicsDto {
 }
 
 export class ScaleReferenceDto {
-  @ApiPropertyOptional({ example: 'calibration_mat' })
+  @ApiPropertyOptional({
+    example: 'device_ar',
+    description:
+      'Markerless only. Prefer device AR world scale (ARKit/ARCore). No mats, rulers, or other physical tools.',
+  })
   @IsOptional()
   @IsString()
   type?: string;
 
-  @ApiPropertyOptional({ example: 200 })
+  @ApiPropertyOptional({
+    example: 0.001,
+    description:
+      'Meters per reconstruction unit from the phone AR session, when available.',
+  })
   @IsOptional()
   @IsNumber()
-  markerDistanceMm?: number;
+  metersPerUnit?: number;
+
+  @ApiPropertyOptional({
+    example: 0.85,
+    description: 'Confidence of the markerless scale estimate (0–1).',
+  })
+  @IsOptional()
+  @IsNumber()
+  confidence?: number;
 }
 
 export class CreateScanDto {

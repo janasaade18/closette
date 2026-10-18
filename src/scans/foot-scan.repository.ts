@@ -212,9 +212,12 @@ export class FootScanRepository {
       await this.insertAsset(scanId, 'mesh', 'obj', reconstruction.objUrl);
     }
 
-    const scanStatus: ScanStatus = reconstruction.glbUrl
+    const hasMesh = Boolean(reconstruction.glbUrl || reconstruction.objUrl);
+    const scanStatus: ScanStatus = hasMesh
       ? 'ready'
-      : 'processing';
+      : reconstruction.status === 'failed'
+        ? 'failed'
+        : 'processing';
     return this.setStatus(scanId, scanStatus);
   }
 

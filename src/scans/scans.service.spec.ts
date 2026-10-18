@@ -27,7 +27,7 @@ describe('ScansService', () => {
     status: 'capturing',
     device: null,
     cameraIntrinsics: null,
-    scaleReference: { type: 'calibration_mat', markerDistanceMm: 200 },
+    scaleReference: { type: 'device_ar' },
     frames: [],
     reconstruction: { status: 'idle', glbUrl: null, objUrl: null },
     error: null,
@@ -69,7 +69,12 @@ describe('ScansService', () => {
           const scan = scans.get(id);
           if (scan) {
             scan.reconstruction = reconstruction;
-            scan.status = reconstruction.glbUrl ? 'ready' : 'processing';
+            scan.status =
+              reconstruction.glbUrl || reconstruction.objUrl
+                ? 'ready'
+                : reconstruction.status === 'failed'
+                  ? 'failed'
+                  : 'processing';
           }
           return Promise.resolve(scan);
         },

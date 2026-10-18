@@ -29,8 +29,15 @@ export class ScansService {
   getGuides() {
     return {
       role: 'The mobile app shows the outline (cadre), filters frames, and uploads. All 3D reconstruction runs on the server.',
+      purpose:
+        'Foot geometry in millimeters (markerless device AR scale) so Closette can recommend shoe size and drive AR try-on against brand shoe data. No physical calibration tools.',
       oneFootAtATime: true,
       startWith: 'left',
+      scale: {
+        mode: 'markerless_device_ar',
+        physicalTools: false,
+        next: 'Compare foot measurements to shoe inner dimensions for fit, then AR overlay.',
+      },
       minAcceptedFrames: MIN_ACCEPTED_FRAMES,
       maxAcceptedFrames: MAX_ACCEPTED_FRAMES,
       minFramesPerView: MIN_FRAMES_PER_VIEW,
@@ -46,8 +53,7 @@ export class ScansService {
       device: dto.device ?? null,
       cameraIntrinsics: dto.cameraIntrinsics ?? null,
       scaleReference: dto.scaleReference ?? {
-        type: 'calibration_mat',
-        markerDistanceMm: 200,
+        type: 'device_ar',
       },
     });
 
@@ -108,12 +114,19 @@ export class ScansService {
 
   async complete(id: string) {
     const scan = await this.getScan(id);
+    const hasMesh = Boolean(
+      scan.reconstruction.glbUrl || scan.reconstruction.objUrl,
+    );
 
-    if (scan.status === 'ready' && scan.reconstruction.glbUrl) {
+    if (scan.status === 'ready' && hasMesh) {
       return this.toResponse(scan);
     }
 
-    if (scan.status !== 'capturing' && scan.status !== 'failed') {
+    const canRetry =
+      scan.reconstruction.status === 'needs_colmap' ||
+      scan.reconstruction.status === 'failed';
+
+    if (scan.status !== 'capturing' && scan.status !== 'failed' && !canRetry) {
       return this.toResponse(scan);
     }
 

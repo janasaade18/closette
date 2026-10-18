@@ -52,8 +52,10 @@ export type FootScan = {
     height?: number;
   } | null;
   scaleReference: {
+    /** e.g. device_ar — never a physical mat or ruler */
     type?: string;
-    markerDistanceMm?: number;
+    metersPerUnit?: number;
+    confidence?: number;
   } | null;
   frames: FootFrame[];
   reconstruction: FootReconstruction;
