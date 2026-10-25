@@ -1,0 +1,15 @@
+data/
+runs/
+weights/
+__pycache__/
+.venv/
+*.pt
+*.onnx
+*.tflite
+datasets/raw/*
+!datasets/raw/.gitkeep
+datasets/processed/
+datasets/train.csv
+datasets/val.csv
+datasets/test.csv
+datasets/class_counts.json

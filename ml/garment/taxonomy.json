@@ -1,0 +1,388 @@
+{
+  "version": 2,
+  "task": "garment-type",
+  "policy": {
+    "abstain_below": 0.35,
+    "hard_floor": 0.2,
+    "ambiguous_margin": 0.08,
+    "min_garment_area_ratio": 0.01
+  },
+  "groups": [
+    {
+      "id": "tops",
+      "name": "Tops",
+      "definition": "A garment worn on the upper body that is not the outer layer over another top.",
+      "types": ["t-shirt", "shirt", "polo", "blouse", "sweater", "hoodie", "tank-top", "sweatshirt"]
+    },
+    {
+      "id": "bottoms",
+      "name": "Bottoms",
+      "definition": "A garment worn on the lower body.",
+      "types": ["jeans", "trousers", "chinos", "shorts", "skirt", "leggings"]
+    },
+    {
+      "id": "one-piece",
+      "name": "One-piece",
+      "definition": "A single garment that covers both the upper and lower body.",
+      "types": ["dress", "jumpsuit", "romper"]
+    },
+    {
+      "id": "outerwear",
+      "name": "Outerwear",
+      "definition": "A layer worn over other clothing, usually for warmth or weather.",
+      "types": ["jacket", "coat", "blazer", "trench-coat", "raincoat"]
+    },
+    {
+      "id": "footwear",
+      "name": "Footwear",
+      "definition": "A garment worn on the feet.",
+      "types": ["sneakers", "boots", "sandals", "formal-shoes", "flats", "heels"]
+    },
+    {
+      "id": "accessories",
+      "name": "Accessories",
+      "definition": "An item worn or carried with an outfit that is not a primary clothing garment.",
+      "types": ["hat", "scarf", "belt", "bag", "gloves", "other-accessories"]
+    }
+  ],
+  "labels": {
+    "t-shirt": {
+      "name": "T-shirt",
+      "prompt": "a t-shirt with short sleeves, a round neck, and no collar",
+      "definition": "A casual knit top with short sleeves and a crew or v-neck, without a collar.",
+      "supervision": "direct",
+      "ambiguous_with": ["polo", "tank-top"]
+    },
+    "shirt": {
+      "name": "Shirt",
+      "prompt": "a button-up shirt with a collar",
+      "definition": "A woven button-up top with a collar, including dress shirts and casual button-ups.",
+      "supervision": "direct",
+      "ambiguous_with": ["blouse"]
+    },
+    "polo": {
+      "name": "Polo",
+      "prompt": "a polo shirt with a collar and a short button placket",
+      "definition": "A knit top with a collar and a short buttoned placket.",
+      "supervision": "direct",
+      "ambiguous_with": ["t-shirt"]
+    },
+    "blouse": {
+      "name": "Blouse",
+      "prompt": "a blouse, a soft dressy top that is not a structured button-up shirt",
+      "definition": "A softer or dressier top, often draped, that is not a structured button-up shirt.",
+      "supervision": "direct",
+      "ambiguous_with": ["shirt"]
+    },
+    "sweater": {
+      "name": "Sweater",
+      "prompt": "a knitted sweater, pullover, or turtleneck",
+      "definition": "A knitted pullover worn for warmth, without a hood.",
+      "supervision": "direct",
+      "ambiguous_with": ["sweatshirt", "hoodie"]
+    },
+    "hoodie": {
+      "name": "Hoodie",
+      "prompt": "a hooded sweatshirt with a hood",
+      "definition": "A sweatshirt with an attached hood.",
+      "supervision": "direct",
+      "ambiguous_with": ["sweatshirt", "sweater"]
+    },
+    "tank-top": {
+      "name": "Tank top",
+      "prompt": "a sleeveless tank top or camisole with thin straps",
+      "definition": "A sleeveless top with a low armhole and no collar.",
+      "supervision": "weak",
+      "ambiguous_with": ["t-shirt"]
+    },
+    "sweatshirt": {
+      "name": "Sweatshirt",
+      "prompt": "a crewneck sweatshirt without a hood",
+      "definition": "A fleece or French-terry pullover with ribbed cuffs and no hood.",
+      "supervision": "zero-shot",
+      "ambiguous_with": ["sweater", "hoodie"]
+    },
+    "jeans": {
+      "name": "Jeans",
+      "prompt": "a pair of denim jeans",
+      "definition": "Full-length pants cut from denim.",
+      "supervision": "zero-shot",
+      "ambiguous_with": ["trousers", "chinos"]
+    },
+    "trousers": {
+      "name": "Trousers",
+      "prompt": "a pair of dress trousers that are not denim and not chinos",
+      "definition": "Full-length pants that are not denim and not cotton-twill chinos, usually dress pants.",
+      "supervision": "weak",
+      "ambiguous_with": ["jeans", "chinos", "leggings"]
+    },
+    "chinos": {
+      "name": "Chinos",
+      "prompt": "a pair of chino pants in cotton twill",
+      "definition": "Casual full-length cotton-twill pants, lighter than jeans and less formal than dress trousers.",
+      "supervision": "zero-shot",
+      "ambiguous_with": ["jeans", "trousers"]
+    },
+    "shorts": {
+      "name": "Shorts",
+      "prompt": "a pair of shorts ending above the knee",
+      "definition": "Pants that end above the knee.",
+      "supervision": "direct",
+      "ambiguous_with": []
+    },
+    "skirt": {
+      "name": "Skirt",
+      "prompt": "a skirt",
+      "definition": "A lower-body garment that hangs from the waist and does not separate the legs.",
+      "supervision": "direct",
+      "ambiguous_with": ["dress"]
+    },
+    "leggings": {
+      "name": "Leggings",
+      "prompt": "a pair of tight stretch leggings",
+      "definition": "Tight stretch pants that follow the leg, including opaque tights worn as pants.",
+      "supervision": "weak",
+      "ambiguous_with": ["trousers"]
+    },
+    "dress": {
+      "name": "Dress",
+      "prompt": "a dress with a skirt",
+      "definition": "A one-piece garment with a bodice and a skirt.",
+      "supervision": "direct",
+      "ambiguous_with": ["romper", "skirt"]
+    },
+    "jumpsuit": {
+      "name": "Jumpsuit",
+      "prompt": "a jumpsuit with long pants",
+      "definition": "A one-piece garment with long pants.",
+      "supervision": "direct",
+      "ambiguous_with": ["romper"]
+    },
+    "romper": {
+      "name": "Romper",
+      "prompt": "a romper with shorts",
+      "definition": "A one-piece garment whose bottom is shorts.",
+      "supervision": "zero-shot",
+      "ambiguous_with": ["dress", "jumpsuit"]
+    },
+    "jacket": {
+      "name": "Jacket",
+      "prompt": "a jacket that ends around the hip",
+      "definition": "A short outer layer, typically ending around the hip, that is not a tailored blazer.",
+      "supervision": "direct",
+      "ambiguous_with": ["coat", "blazer"]
+    },
+    "coat": {
+      "name": "Coat",
+      "prompt": "a long coat that falls past the hip",
+      "definition": "An outer layer that falls past the hip and is not specifically a trench coat or raincoat.",
+      "supervision": "direct",
+      "ambiguous_with": ["jacket", "trench-coat", "raincoat"]
+    },
+    "blazer": {
+      "name": "Blazer",
+      "prompt": "a tailored blazer",
+      "definition": "A tailored jacket, often with lapels, worn as part of suiting or smart casual dress.",
+      "supervision": "direct",
+      "ambiguous_with": ["jacket"]
+    },
+    "trench-coat": {
+      "name": "Trench coat",
+      "prompt": "a belted trench coat with a storm flap",
+      "definition": "A long belted raincoat-style coat with a storm flap, usually gabardine.",
+      "supervision": "zero-shot",
+      "ambiguous_with": ["coat", "raincoat"]
+    },
+    "raincoat": {
+      "name": "Raincoat",
+      "prompt": "a waterproof raincoat",
+      "definition": "A waterproof outer layer meant for rain that is not cut as a trench coat.",
+      "supervision": "zero-shot",
+      "ambiguous_with": ["coat", "trench-coat"]
+    },
+    "sneakers": {
+      "name": "Sneakers",
+      "prompt": "a pair of athletic sneakers",
+      "definition": "Athletic or casual shoes with a rubber sole and a closed upper.",
+      "supervision": "zero-shot",
+      "ambiguous_with": ["formal-shoes"]
+    },
+    "boots": {
+      "name": "Boots",
+      "prompt": "a pair of boots that cover the ankle",
+      "definition": "Footwear that extends to or above the ankle.",
+      "supervision": "zero-shot",
+      "ambiguous_with": ["formal-shoes"]
+    },
+    "sandals": {
+      "name": "Sandals",
+      "prompt": "a pair of open sandals",
+      "definition": "Open footwear that leaves most of the foot exposed.",
+      "supervision": "zero-shot",
+      "ambiguous_with": ["flats"]
+    },
+    "formal-shoes": {
+      "name": "Formal shoes",
+      "prompt": "a pair of formal leather oxford or derby shoes",
+      "definition": "Closed dress shoes such as oxfords or derbies, with a low heel.",
+      "supervision": "zero-shot",
+      "ambiguous_with": ["sneakers", "boots"]
+    },
+    "flats": {
+      "name": "Flats",
+      "prompt": "a pair of flat shoes with no raised heel",
+      "definition": "Closed, low-cut shoes with no raised heel.",
+      "supervision": "zero-shot",
+      "ambiguous_with": ["heels", "sandals"]
+    },
+    "heels": {
+      "name": "Heels",
+      "prompt": "a pair of high-heeled shoes",
+      "definition": "Shoes with a raised heel.",
+      "supervision": "zero-shot",
+      "ambiguous_with": ["flats"]
+    },
+    "hat": {
+      "name": "Hat",
+      "prompt": "a hat or cap",
+      "definition": "A hat, cap, or beanie worn on the head. A hood sewn onto a hoodie is not a hat.",
+      "supervision": "direct",
+      "ambiguous_with": []
+    },
+    "scarf": {
+      "name": "Scarf",
+      "prompt": "a scarf worn around the neck",
+      "definition": "A length of fabric worn around the neck.",
+      "supervision": "direct",
+      "ambiguous_with": []
+    },
+    "belt": {
+      "name": "Belt",
+      "prompt": "a belt worn at the waist",
+      "definition": "A strap worn around the waist over clothing.",
+      "supervision": "direct",
+      "ambiguous_with": []
+    },
+    "bag": {
+      "name": "Bag",
+      "prompt": "a handbag or shoulder bag",
+      "definition": "A bag carried or worn with an outfit, including handbags, totes, and backpacks.",
+      "supervision": "direct",
+      "ambiguous_with": []
+    },
+    "gloves": {
+      "name": "Gloves",
+      "prompt": "a pair of gloves",
+      "definition": "A covering worn on the hands.",
+      "supervision": "zero-shot",
+      "ambiguous_with": []
+    },
+    "other-accessories": {
+      "name": "Other accessories",
+      "prompt": "a fashion accessory such as glasses, a tie, or jewelry",
+      "definition": "An accessory that is not a hat, scarf, belt, bag, or gloves, such as glasses, a tie, or jewelry.",
+      "supervision": "weak",
+      "ambiguous_with": []
+    }
+  },
+  "ambiguous_cases": [
+    {
+      "id": "shirt-blouse",
+      "labels": ["shirt", "blouse"],
+      "guidance": "Use shirt for a structured button-up with a collar. Use blouse for a softer or dressier top. Fashionpedia merges these into one class, so that source row is not used for training."
+    },
+    {
+      "id": "t-shirt-polo-tank",
+      "labels": ["t-shirt", "polo", "tank-top"],
+      "guidance": "A polo has a collar and a placket. A tank top has no sleeves. A t-shirt has sleeves and no collar. DeepFashion2 short-sleeve tops mix these, so that mapping is weak."
+    },
+    {
+      "id": "sweater-sweatshirt-hoodie",
+      "labels": ["sweater", "sweatshirt", "hoodie"],
+      "guidance": "A sweater is knit. A sweatshirt is fleece or French terry without a hood. A hoodie is a sweatshirt with a hood. Fashionpedia's combined top class is not mapped."
+    },
+    {
+      "id": "jeans-trousers-chinos",
+      "labels": ["jeans", "trousers", "chinos"],
+      "guidance": "Jeans are denim. Chinos are cotton twill. Trousers are other full-length pants, usually dress pants. DeepFashion2 trousers and Fashionpedia pants mix these, so those rows are weak and are not treated as jeans."
+    },
+    {
+      "id": "coat-jacket-trench-rain",
+      "labels": ["coat", "jacket", "blazer", "trench-coat", "raincoat"],
+      "guidance": "A jacket ends around the hip. A coat is longer. A blazer is tailored. A trench coat is a belted coat with a storm flap. A raincoat is a waterproof shell that is not a trench."
+    },
+    {
+      "id": "dress-jumpsuit-romper",
+      "labels": ["dress", "jumpsuit", "romper"],
+      "guidance": "A dress has a skirt. A jumpsuit has long pants. A romper has shorts. Public datasets rarely separate rompers, so romper stays zero-shot."
+    },
+    {
+      "id": "dress-skirt",
+      "labels": ["dress", "skirt"],
+      "guidance": "A dress has a bodice. A skirt starts at the waist. A skirt crop that cuts off the waist often looks like a dress, so the pipeline rescored the full photo and asks for review when dress and skirt stay close."
+    },
+    {
+      "id": "footwear-cut",
+      "labels": ["sneakers", "boots", "sandals", "formal-shoes", "flats", "heels"],
+      "guidance": "Datasets that only say shoe are not mapped. A boot covers the ankle. Sandals are open. Heels have a raised heel. Flats do not. Sneakers are athletic. Formal shoes are closed dress shoes."
+    },
+    {
+      "id": "vest-and-generic-shoe",
+      "labels": [],
+      "guidance": "DeepFashion2 vest, Fashionpedia vest, and Fashionpedia cardigan are skipped. They are not forced into tank-top or sweater. A generic shoe label is skipped so it is not stored as sneakers."
+    }
+  ],
+  "sources": {
+    "deepfashion2": {
+      "short sleeve top": "t-shirt",
+      "long sleeve top": "shirt",
+      "short sleeve outwear": "jacket",
+      "long sleeve outwear": "jacket",
+      "shorts": "shorts",
+      "trousers": "trousers",
+      "skirt": "skirt",
+      "short sleeve dress": "dress",
+      "long sleeve dress": "dress",
+      "vest dress": "dress",
+      "sling dress": "dress"
+    },
+    "fashionpedia": {
+      "sweater": "sweater",
+      "jacket": "jacket",
+      "pants": "trousers",
+      "shorts": "shorts",
+      "skirt": "skirt",
+      "coat": "coat",
+      "dress": "dress",
+      "jumpsuit": "jumpsuit",
+      "hat": "hat",
+      "belt": "belt",
+      "bag, wallet": "bag",
+      "scarf": "scarf",
+      "tights, stockings": "leggings",
+      "glasses": "other-accessories",
+      "tie": "other-accessories"
+    },
+    "clothing-dataset": {
+      "t-shirt": "t-shirt",
+      "shirt": "shirt",
+      "polo": "polo",
+      "blouse": "blouse",
+      "hoodie": "hoodie",
+      "blazer": "blazer",
+      "dress": "dress",
+      "shorts": "shorts",
+      "skirt": "skirt",
+      "hat": "hat",
+      "longsleeve": "shirt",
+      "pants": "trousers",
+      "outwear": "jacket",
+      "undershirt": "tank-top"
+    }
+  },
+  "weak_sources": {
+    "deepfashion2": ["short sleeve top", "long sleeve top", "trousers"],
+    "fashionpedia": ["pants", "tights, stockings", "glasses", "tie"],
+    "clothing-dataset": ["longsleeve", "pants", "outwear", "undershirt"]
+  }
+}
