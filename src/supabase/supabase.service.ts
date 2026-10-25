@@ -1,19 +1,19 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createClient } from '@supabase/supabase-js';
+import { SupabaseClient, createClient } from '@supabase/supabase-js';
 
 @Injectable()
 export class SupabaseService {
-  private readonly client: ReturnType<typeof createClient>;
+  private readonly client: SupabaseClient;
 
   constructor(private readonly configService: ConfigService) {
     this.client = createClient(
       this.configService.getOrThrow<string>('SUPABASE_URL'),
       this.configService.getOrThrow<string>('SUPABASE_SERVICE_ROLE_KEY'),
-    );
+    ) as SupabaseClient;
   }
 
-  getClient(): ReturnType<typeof createClient> {
+  getClient(): SupabaseClient {
     return this.client;
   }
 
@@ -44,6 +44,13 @@ export class SupabaseService {
     }
 
     const { data } = this.client.storage.from(bucket).getPublicUrl(path);
+    return data.publicUrl;
+  }
+
+  publicFootFrameUrl(path: string): string {
+    const { data } = this.client.storage
+      .from(this.getFootScansBucket())
+      .getPublicUrl(path);
     return data.publicUrl;
   }
 }

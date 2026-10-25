@@ -1,17 +1,13 @@
 import { Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
 import { SupabaseModule } from '../supabase/supabase.module';
+import { FootScanRepository } from './foot-scan.repository';
 import { ReconstructionService } from './reconstruction.service';
-import { Scan, ScanSchema } from './schemas/scan.schema';
 import { ScansController } from './scans.controller';
 import { ScansService } from './scans.service';
 
 @Module({
-  imports: [
-    MongooseModule.forFeature([{ name: Scan.name, schema: ScanSchema }]),
-    SupabaseModule,
-  ],
+  imports: [SupabaseModule],
   controllers: [ScansController],
-  providers: [ScansService, ReconstructionService],
+  providers: [ScansService, ReconstructionService, FootScanRepository],
 })
 export class ScansModule {}
