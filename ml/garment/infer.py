@@ -32,12 +32,12 @@ def classify_garments(
     classifier_path: Path = Path("ml/garment/weights/classifier.pt"),
     min_confidence: float = 0.25,
 ) -> list[dict]:
-    from ultralytics import YOLO
-
     if not detector_path.is_file() or not classifier_path.is_file():
         raise FileNotFoundError(
             "Missing weights. Train with train_detector.py and train_classifier.py first."
         )
+
+    from ultralytics import YOLO
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     detector = YOLO(str(detector_path))
