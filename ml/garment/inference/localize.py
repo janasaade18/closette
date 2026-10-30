@@ -7,13 +7,12 @@ that model is absent or finds no garment.
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 
 import numpy as np
 from PIL import Image
 
-os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
+from paths import SEGFORMER_DIR, require_local_model
 
 # Checked against the checkpoint id2label before use.
 EXPECTED_LABELS = {
@@ -223,8 +222,9 @@ class SegFormerSegmenter:
         from transformers import AutoModelForSemanticSegmentation, SegformerImageProcessor
 
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self._processor = SegformerImageProcessor.from_pretrained(self.model_id)
-        self._model = AutoModelForSemanticSegmentation.from_pretrained(self.model_id)
+        folder = require_local_model(SEGFORMER_DIR, "SegFormer")
+        self._processor = SegformerImageProcessor.from_pretrained(folder, local_files_only=True)
+        self._model = AutoModelForSemanticSegmentation.from_pretrained(folder, local_files_only=True)
         labels = {int(key): value for key, value in self._model.config.id2label.items()}
         for index, name in EXPECTED_LABELS.items():
             if labels.get(index) != name:

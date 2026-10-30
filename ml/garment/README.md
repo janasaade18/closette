@@ -14,10 +14,9 @@ From `closette/ml/garment`:
 
 ```bash
 python -m pip install -r requirements.txt
-python prefetch.py
 ```
 
-`prefetch.py` downloads FashionCLIP (`patrickjohncyh/fashion-clip`, about 600 MB) and SegFormer-B2 clothes (`mattmdjaga/segformer_b2_clothes`, about 110 MB) into the Hugging Face cache. Those files are not committed. The downloader disables the Xet transfer path, which can stall on Windows. The first `prefetch.py` run is the slow one.
+FashionCLIP and SegFormer are already in `weights/fashion-clip` and `weights/segformer`. Pull those folders with Git LFS. Do not download them again. `prefetch.py` is only for replacing those copies.
 
 Detector training also needs `ultralytics`. It is not required to run the API.
 

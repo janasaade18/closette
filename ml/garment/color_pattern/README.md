@@ -83,5 +83,4 @@ python evaluate.py
 - Plaid is weak on the photo model. Abstract print has no training photos. Camouflage was trained on synthetic swatches.
 - Leather, fur, silk, and other had fewer than 220 images each.
 - Color uses the SegFormer mask when the type model returns one. A loose box with no mask still includes background.
-- Each API call starts a new Python process. The first response downloads FashionCLIP (about 600 MB) and SegFormer (about 110 MB) into the Hugging Face cache, then loads the pattern and texture heads.
-- `torch` and `transformers` have to be installed. `detector.pt` is not used for this single-garment result.
+- Pattern and texture heads are in `ml/garment/color_pattern/weights`. FashionCLIP and SegFormer are in `ml/garment/weights` and load from disk. A pull brings them in. The API does not download them again.
