@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from paths import CLASSIFIER_WEIGHTS
+from paths import CLASSIFIER_WEIGHTS, FASHIONCLIP_DIR, require_local_model
 from taxonomy import class_names, load_taxonomy, prompts
 
 os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
@@ -65,8 +65,9 @@ class ZeroShotClassifier:
         from transformers import CLIPModel, CLIPProcessor
 
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self._processor = CLIPProcessor.from_pretrained(self.model_id)
-        self._model = CLIPModel.from_pretrained(self.model_id)
+        folder = require_local_model(FASHIONCLIP_DIR, "FashionCLIP")
+        self._processor = CLIPProcessor.from_pretrained(folder, local_files_only=True)
+        self._model = CLIPModel.from_pretrained(folder, local_files_only=True)
         self._model.to(self._device)
         self._model.eval()
 

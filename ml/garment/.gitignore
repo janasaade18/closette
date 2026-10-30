@@ -1,6 +1,12 @@
 data/
 runs/
-weights/
+weights/*
+!weights/fashion-clip/
+!weights/fashion-clip/**
+!weights/segformer/
+!weights/segformer/**
+weights/fashion-clip/.cache/
+weights/segformer/.cache/
 __pycache__/
 .venv/
 *.pt

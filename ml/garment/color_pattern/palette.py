@@ -1,0 +1,57 @@
+"""Fixed Closette color names. Anchors are sRGB; matching happens in CIELAB."""
+
+from __future__ import annotations
+
+COLOR_NAMES = (
+    "black",
+    "white",
+    "off-white",
+    "grey",
+    "charcoal",
+    "red",
+    "burgundy",
+    "pink",
+    "orange",
+    "yellow",
+    "mustard",
+    "green",
+    "olive",
+    "mint",
+    "blue",
+    "navy",
+    "sky blue",
+    "purple",
+    "lavender",
+    "brown",
+    "tan",
+    "beige",
+    "cream",
+    "multicolor",
+)
+
+# multicolor is a flag, not a swatch the cluster matcher may return.
+SWATCHES: dict[str, tuple[int, int, int]] = {
+    "black": (20, 20, 20),
+    "white": (250, 250, 250),
+    "off-white": (236, 232, 222),
+    "grey": (148, 148, 150),
+    "charcoal": (54, 56, 60),
+    "red": (196, 36, 42),
+    "burgundy": (110, 24, 40),
+    "pink": (232, 140, 168),
+    "orange": (220, 110, 36),
+    "yellow": (240, 210, 50),
+    "mustard": (184, 142, 42),
+    "green": (46, 130, 64),
+    "olive": (96, 102, 42),
+    "mint": (150, 210, 180),
+    "blue": (40, 90, 180),
+    "navy": (28, 42, 92),
+    "sky blue": (130, 190, 230),
+    "purple": (110, 50, 150),
+    "lavender": (190, 170, 220),
+    "brown": (110, 70, 42),
+    "tan": (184, 146, 102),
+    "beige": (214, 196, 168),
+    "cream": (245, 236, 210),
+}
