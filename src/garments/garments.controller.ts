@@ -40,9 +40,10 @@ export class GarmentsController {
 
   @Post('appearance')
   @ApiOperation({
-    summary: 'Type, color, pattern, and texture for every garment in one photo',
+    summary:
+      'Type, color, pattern, and texture for the primary garment in one photo',
     description:
-      'Runs garment detection unless classification is sent. Each item includes group, type, confidence, box, color, pattern, and texture. A pattern or texture score under 0.55 comes back as unknown.',
+      'Names the garment with the type model and attaches color, pattern, and texture on its box. Send classification to reuse boxes. A pattern or texture score under 0.55 comes back as unknown.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({

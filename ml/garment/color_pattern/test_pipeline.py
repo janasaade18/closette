@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 from PIL import Image, ImageDraw
@@ -8,7 +9,7 @@ from PIL import Image, ImageDraw
 from color import extract_colors
 from palette import COLOR_NAMES
 from pattern import PATTERN_LABELS, classify_gabor, classify_pattern
-from pipeline import analyze, classify_photo
+from pipeline import analyze, classify_photo, _mask_array
 
 
 def _canvas(color: tuple[int, int, int], size: int = 160) -> Image.Image:
@@ -203,20 +204,65 @@ class PipelineTests(unittest.TestCase):
             self.assertIn(item["pattern"]["primary"], PATTERN_LABELS)
             self.assertIn("primary", item["texture"])
 
-    def test_missing_detector_weights_are_reported(self) -> None:
-        weights = Path(__file__).resolve().parents[1] / "weights" / "detector.pt"
-        if weights.is_file():
-            self.skipTest("detector weights are installed")
+    def test_type_label_and_color_are_one_garment(self) -> None:
+        image = _canvas((250, 250, 250), 220)
+        ImageDraw.Draw(image).rectangle((10, 10, 100, 80), fill=(28, 42, 92))
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as handle:
+            path = Path(handle.name)
+        typed = {
+            "status": "success",
+            "category": "tops",
+            "subcategory": "t-shirt",
+            "confidence": 0.91,
+            "bbox": [10, 10, 100, 80],
+            "mask": None,
+            "reason": None,
+            "model_version": "closet-classifier-v1",
+        }
+        try:
+            image.save(path, "JPEG")
+            with patch("pipeline._from_type_model", return_value=typed):
+                payload = classify_photo(path)
+        finally:
+            path.unlink(missing_ok=True)
+        self.assertEqual(payload["status"], "success")
+        self.assertEqual(payload["type_model_version"], "closet-classifier-v1")
+        self.assertEqual(payload["garments"][0]["type"], "t-shirt")
+        self.assertEqual(payload["garments"][0]["group"], "tops")
+        self.assertEqual(payload["garments"][0]["color"]["primary"]["name"], "navy")
+        self.assertIn(payload["garments"][0]["pattern"]["primary"], PATTERN_LABELS)
+        self.assertIn("primary", payload["garments"][0]["texture"])
+
+    def test_rle_mask_covers_the_foreground(self) -> None:
+        mask = _mask_array(
+            {
+                "encoding": "rle-row-major",
+                "start_value": 0,
+                "width": 2,
+                "height": 2,
+                "source_width": 4,
+                "source_height": 4,
+                "counts": [0, 4],
+            }
+        )
+        self.assertEqual(mask.shape, (4, 4))
+        self.assertTrue(bool(mask.all()))
+
+    def test_type_model_failure_is_reported(self) -> None:
         with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as handle:
             path = Path(handle.name)
         try:
             _canvas((28, 42, 92), 32).save(path, "JPEG")
-            payload = classify_photo(path)
+            with patch(
+                "pipeline._from_type_model",
+                side_effect=ImportError("transformers is required to classify garments"),
+            ):
+                payload = classify_photo(path)
         finally:
             path.unlink(missing_ok=True)
         self.assertEqual(payload["status"], "failed")
         self.assertEqual(payload["garments"], [])
-        self.assertIn("weight", payload["error"].lower())
+        self.assertIn("transformers", payload["error"])
 
     def test_bad_image_does_not_invent_a_label(self) -> None:
         payload = analyze("missing-garment.jpg")

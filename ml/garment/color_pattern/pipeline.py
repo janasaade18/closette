@@ -10,6 +10,7 @@ import json
 import sys
 from pathlib import Path
 
+import numpy as np
 from PIL import Image, UnidentifiedImageError
 
 from color import extract_colors
@@ -60,9 +61,11 @@ def classify_photo(
     """Type, color, pattern, and texture for every garment in the photo."""
     try:
         opened = _open(image)
+        if classification is None:
+            return _join_type(opened, _from_type_model(opened), k)
         items = _detections(image, classification)
         garments = [_describe(opened, item, k) for item in items]
-    except (OSError, UnidentifiedImageError, ValueError, FileNotFoundError, ImportError) as error:
+    except (OSError, UnidentifiedImageError, ValueError, FileNotFoundError, ImportError, RuntimeError) as error:
         return {
             "status": "failed",
             "garments": [],
@@ -77,37 +80,100 @@ def classify_photo(
     }
 
 
+def _from_type_model(image: Image.Image) -> dict:
+    """SegFormer box plus FashionCLIP label. MobileNet is used only when it covers the taxonomy."""
+    if str(GARMENT_ROOT) not in sys.path:
+        sys.path.insert(0, str(GARMENT_ROOT))
+    from inference.pipeline import ModelError, build_default_pipeline
+
+    try:
+        return build_default_pipeline().predict_image(
+            image,
+            include_embedding=False,
+            include_mask=True,
+        )
+    except ModelError as error:
+        raise RuntimeError(str(error)) from error
+
+
+def _join_type(image: Image.Image, typed: dict, k: int) -> dict:
+    header = {
+        "status": typed.get("status") or "unclear",
+        "reason": typed.get("reason"),
+        "model_version": MODEL_VERSION,
+        "type_model_version": typed.get("model_version"),
+    }
+    if header["status"] == "unclear" or not typed.get("bbox") or not typed.get("subcategory"):
+        return {**header, "garments": []}
+    return {**header, "garments": [_describe(image, _item_from_type(typed), k)]}
+
+
+def _item_from_type(typed: dict) -> dict:
+    return {
+        "group": typed.get("category"),
+        "type": typed.get("subcategory"),
+        "category": typed.get("category"),
+        "subcategory": typed.get("subcategory"),
+        "confidence": typed.get("confidence"),
+        "box": typed.get("bbox"),
+        "reason": typed.get("reason"),
+        "mask": _mask_array(typed.get("mask")),
+    }
+
+
+def _mask_array(mask: dict | None) -> np.ndarray | None:
+    if not isinstance(mask, dict) or mask.get("encoding") != "rle-row-major":
+        return None
+    height = int(mask["height"])
+    width = int(mask["width"])
+    flat = np.zeros(height * width, dtype=np.uint8)
+    index = 0
+    value = int(mask.get("start_value") or 0)
+    for count in mask.get("counts") or []:
+        count = int(count)
+        if value and count:
+            flat[index : index + count] = 1
+        index += count
+        value = 1 - value
+    small = flat.reshape(height, width)
+    source_width = int(mask.get("source_width") or width)
+    source_height = int(mask.get("source_height") or height)
+    if (source_height, source_width) != small.shape:
+        image = Image.fromarray(small * 255)
+        image = image.resize((source_width, source_height), Image.Resampling.NEAREST)
+        small = np.asarray(image) > 0
+    return small
+
+
 def _detections(
     image: Image.Image | str | Path,
     classification: dict | list | None,
 ) -> list[dict]:
-    if classification is not None:
-        items = classification if isinstance(classification, list) else [classification]
-        return [item for item in items if isinstance(item, dict)]
-    if isinstance(image, Image.Image):
-        raise ValueError("detection needs an image file")
-    if str(GARMENT_ROOT) not in sys.path:
-        sys.path.insert(0, str(GARMENT_ROOT))
-    from infer import classify_garments
-
-    return classify_garments(
-        Path(image),
-        detector_path=GARMENT_ROOT / "weights" / "detector.pt",
-        classifier_path=GARMENT_ROOT / "weights" / "classifier.pt",
-    )
+    items = classification if isinstance(classification, list) else [classification]
+    return [item for item in items if isinstance(item, dict)]
 
 
 def _describe(image: Image.Image, item: dict, k: int) -> dict:
     box = _box(item)
-    return {
+    mask = item.get("mask")
+    if not isinstance(mask, np.ndarray):
+        mask = None
+    described = {
         "group": item.get("group"),
         "type": item.get("type"),
         "confidence": item.get("confidence"),
         "box": box,
-        "color": extract_colors(image, box=box, k=k),
+        "color": extract_colors(image, box=box, mask=mask, k=k),
         "pattern": classify_pattern(image, box=box),
         "texture": classify_texture(image, box=box),
     }
+    if item.get("category") is not None:
+        described["category"] = item.get("category")
+    if item.get("subcategory") is not None:
+        described["subcategory"] = item.get("subcategory")
+    if "reason" in item:
+        described["reason"] = item.get("reason")
+    return described
 
 
 def _box(item: dict) -> list[float] | None:

@@ -3,8 +3,6 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   FOOT_CAPTURE_GUIDES,
@@ -16,13 +14,14 @@ import {
 } from './constants/capture-guides';
 import { CreateScanDto } from './dto/create-scan.dto';
 import { UploadFrameDto } from './dto/upload-frame.dto';
+import { FootScanRepository } from './foot-scan.repository';
+import { FootScan } from './foot-model.types';
 import { ReconstructionService } from './reconstruction.service';
-import { Scan, ScanDocument } from './schemas/scan.schema';
 
 @Injectable()
 export class ScansService {
   constructor(
-    @InjectModel(Scan.name) private readonly scanModel: Model<ScanDocument>,
+    private readonly footScans: FootScanRepository,
     private readonly supabaseService: SupabaseService,
     private readonly reconstructionService: ReconstructionService,
   ) {}
@@ -30,8 +29,15 @@ export class ScansService {
   getGuides() {
     return {
       role: 'The mobile app shows the outline (cadre), filters frames, and uploads. All 3D reconstruction runs on the server.',
+      purpose:
+        'Foot geometry in millimeters (markerless device AR scale) so Closette can recommend shoe size and drive AR try-on against brand shoe data. No physical calibration tools.',
       oneFootAtATime: true,
       startWith: 'left',
+      scale: {
+        mode: 'markerless_device_ar',
+        physicalTools: false,
+        next: 'Compare foot measurements to shoe inner dimensions for fit, then AR overlay.',
+      },
       minAcceptedFrames: MIN_ACCEPTED_FRAMES,
       maxAcceptedFrames: MAX_ACCEPTED_FRAMES,
       minFramesPerView: MIN_FRAMES_PER_VIEW,
@@ -42,19 +48,13 @@ export class ScansService {
   }
 
   async create(dto: CreateScanDto) {
-    const scan = await this.scanModel.create({
+    const scan = await this.footScans.create({
       footSide: dto.footSide,
-      device: dto.device,
-      cameraIntrinsics: dto.cameraIntrinsics,
+      device: dto.device ?? null,
+      cameraIntrinsics: dto.cameraIntrinsics ?? null,
       scaleReference: dto.scaleReference ?? {
-        type: 'calibration_mat',
-        markerDistanceMm: 200,
+        type: 'device_ar',
       },
-      status: 'capturing',
-      frames: [],
-      segmentationMasks: [],
-      landmarks: [],
-      reconstruction: { status: 'idle', glbUrl: null, objUrl: null },
     });
 
     return this.toResponse(scan);
@@ -91,38 +91,42 @@ export class ScansService {
     const extension = this.extensionFor(file);
     const index = scan.frames.length;
     const storagePath = `${scan.id}/${String(index).padStart(4, '0')}-${dto.view}${extension}`;
-    const url = await this.supabaseService.uploadFootFrame(
+    await this.supabaseService.uploadFootFrame(
       storagePath,
       file.buffer,
       file.mimetype,
     );
 
-    scan.frames.push({
-      index,
+    const updated = await this.footScans.addFrame(id, {
       view: dto.view,
       storagePath,
-      url,
       accepted,
       sharpness: dto.sharpness,
       footVisible: dto.footVisible,
       footAreaRatio: dto.footAreaRatio,
       pose: dto.pose,
-      capturedAt: dto.capturedAt ? new Date(dto.capturedAt) : undefined,
-      uploadedAt: new Date(),
+      capturedAt: dto.capturedAt,
+      index,
     });
 
-    await scan.save();
-    return this.toResponse(scan);
+    return this.toResponse(updated);
   }
 
   async complete(id: string) {
     const scan = await this.getScan(id);
+    const hasMesh = Boolean(
+      scan.reconstruction.glbUrl || scan.reconstruction.objUrl,
+    );
 
-    if (scan.status === 'ready' && scan.reconstruction?.glbUrl) {
+    if (scan.status === 'ready' && hasMesh) {
       return this.toResponse(scan);
     }
 
-    if (scan.status !== 'capturing' && scan.status !== 'failed') {
+    const canRetry =
+      scan.reconstruction.status === 'needs_colmap' ||
+      scan.reconstruction.status === 'failed';
+
+    if (scan.status !== 'capturing' && scan.status !== 'failed' && !canRetry) {
       return this.toResponse(scan);
     }
 
@@ -139,21 +143,13 @@ export class ScansService {
       );
     }
 
-    scan.status = 'processing';
-    scan.error = undefined;
-    await scan.save();
-
-    await this.reconstructionService.enqueue(scan);
-
-    if (scan.reconstruction?.glbUrl) {
-      scan.status = 'ready';
-    }
-
-    await scan.save();
-    return this.toResponse(scan);
+    await this.footScans.setStatus(id, 'processing');
+    const reconstruction = await this.reconstructionService.enqueue(scan);
+    const updated = await this.footScans.saveReconstruction(id, reconstruction);
+    return this.toResponse(updated);
   }
 
-  private coverage(scan: ScanDocument) {
+  private coverage(scan: FootScan) {
     const acceptedFrames = scan.frames.filter((frame) => frame.accepted);
     const missingViews = REQUIRED_FOOT_VIEWS.filter((view) => {
       const count = acceptedFrames.filter(
@@ -177,7 +173,7 @@ export class ScansService {
   }
 
   private async getScan(id: string) {
-    const scan = await this.scanModel.findById(id);
+    const scan = await this.footScans.findById(id);
     if (!scan) {
       throw new NotFoundException('Scan not found');
     }
@@ -201,12 +197,13 @@ export class ScansService {
     return byType[file.mimetype] ?? '.jpg';
   }
 
-  private toResponse(scan: ScanDocument) {
+  private toResponse(scan: FootScan) {
     const progress = this.coverage(scan);
 
     return {
       scanId: scan.id,
-      device: scan.device ?? null,
+      profileId: scan.profileId,
+      device: scan.device,
       footSide: scan.footSide,
       status: scan.status,
       frames: scan.frames.map((frame) => ({
@@ -220,21 +217,15 @@ export class ScansService {
         pose: frame.pose ?? null,
         capturedAt: frame.capturedAt,
       })),
-      cameraIntrinsics: scan.cameraIntrinsics ?? null,
+      cameraIntrinsics: scan.cameraIntrinsics,
       cameraPoses: scan.frames
         .filter((frame) => frame.pose)
         .map((frame) => ({
           index: frame.index,
           pose: frame.pose,
         })),
-      scaleReference: scan.scaleReference ?? null,
-      segmentationMasks: scan.segmentationMasks ?? [],
-      landmarks: scan.landmarks ?? [],
-      reconstruction: scan.reconstruction ?? {
-        status: 'idle',
-        glbUrl: null,
-        objUrl: null,
-      },
+      scaleReference: scan.scaleReference,
+      reconstruction: scan.reconstruction,
       progress: {
         accepted: progress.accepted,
         total: progress.total,
@@ -247,9 +238,8 @@ export class ScansService {
         coverage: progress.coverage,
         missingViews: progress.missingViews,
       },
-      error: scan.error ?? null,
-      createdAt: scan.get('createdAt') as Date | undefined,
-      updatedAt: scan.get('updatedAt') as Date | undefined,
+      error: scan.error,
+      createdAt: scan.createdAt,
     };
   }
 }

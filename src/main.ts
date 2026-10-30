@@ -24,7 +24,7 @@ async function bootstrap() {
   const config = new DocumentBuilder()
     .setTitle('Closette API')
     .setDescription(
-      'Closette Phase 1: the phone guides capture and uploads 30–60 frames; this API plus the Python worker reconstruct the 3D foot.',
+      'Closette foot model: phone guides capture and uploads frames (markerless scale via device AR). This API plus the Python worker reconstruct the 3D foot for shoe-size fit and AR try-on. No physical calibration tools.',
     )
     .setVersion('0.1')
     .addBearerAuth()

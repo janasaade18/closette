@@ -14,7 +14,7 @@ import { AnalyzeAppearanceDto } from './dto/analyze-appearance.dto';
 
 const SCRIPT_DIR = join(process.cwd(), 'ml', 'garment', 'color_pattern');
 const PIPELINE = join(SCRIPT_DIR, 'pipeline.py');
-const TIMEOUT_MS = 180_000;
+const TIMEOUT_MS = 900_000;
 
 const IMAGE_EXTENSIONS: Record<string, string> = {
   'image/jpeg': '.jpg',

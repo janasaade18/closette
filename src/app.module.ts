@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { MongooseModule } from '@nestjs/mongoose';
+import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { SupabaseModule } from './supabase/supabase.module';
 import { GarmentsModule } from './garments/garments.module';
 import { ScansModule } from './scans/scans.module';
+import { ShoesModule } from './shoes/shoes.module';
 
 @Module({
   imports: [
@@ -13,16 +13,10 @@ import { ScansModule } from './scans/scans.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
-    MongooseModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        uri: configService.get<string>('MONGODB_URI'),
-      }),
-    }),
     SupabaseModule,
     ScansModule,
     GarmentsModule,
+    ShoesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

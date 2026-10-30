@@ -6,3 +6,10 @@ __pycache__/
 *.pt
 *.onnx
 *.tflite
+datasets/raw/*
+!datasets/raw/.gitkeep
+datasets/processed/
+datasets/train.csv
+datasets/val.csv
+datasets/test.csv
+datasets/class_counts.json
