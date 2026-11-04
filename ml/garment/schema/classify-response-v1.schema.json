@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "closette.garment.classify.v1",
+  "type": "object",
+  "required": [
+    "status",
+    "category",
+    "subcategory",
+    "confidence",
+    "bbox",
+    "mask",
+    "embedding",
+    "model_version"
+  ],
+  "properties": {
+    "status": { "enum": ["success", "review", "unclear", "error"] },
+    "category": { "type": ["string", "null"] },
+    "subcategory": { "type": ["string", "null"] },
+    "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "bbox": {
+      "type": ["array", "null"],
+      "items": { "type": "integer" },
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "mask": { "type": ["object", "null"] },
+    "embedding": {
+      "type": ["array", "null"],
+      "items": { "type": "number" }
+    },
+    "model_version": { "const": "closet-classifier-v1" },
+    "reason": { "type": ["string", "null"] },
+    "alternatives": { "type": ["array", "null"] },
+    "latency_ms": { "type": "number" },
+    "models": { "type": "object" },
+    "error": { "type": "string" },
+    "message": { "type": "string" }
+  }
+}
