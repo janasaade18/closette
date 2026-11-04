@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "weights": {
+    "occasion_match": 0.27,
+    "style_match": 0.16,
+    "garment_type_preference": 0.09,
+    "color_preference": 0.14,
+    "color_harmony": 0.09,
+    "weather_suitability": 0.16,
+    "context_layer": 0.09
+  },
+  "feedback_adjustment_weight": 0.06,
+  "uninformed_score": 0.5,
+  "reason_threshold": 0.7,
+  "color_harmony_reason_threshold": 0.85
+}

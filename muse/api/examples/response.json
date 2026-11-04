@@ -1,0 +1,57 @@
+{
+  "api_version": "v1",
+  "model_version": "muse-v1",
+  "status": "ok",
+  "score_semantics": "weighted_average_of_active_features_not_a_probability",
+  "score_note": "Scores run from 0 to 1. They are a weighted average of the signals that had evidence, plus a small feedback adjustment when enough history exists. They are not probabilities.",
+  "recommendation_id": "rec-ca486f2362dd",
+  "recommendations": [
+    {
+      "outfit_id": "outfit-1aa3347550c4",
+      "items": [
+        "item-001",
+        "item-002",
+        "item-003"
+      ],
+      "roles": {
+        "top": "item-001",
+        "bottom": "item-002",
+        "footwear": "item-003"
+      },
+      "score": 0.9827,
+      "reasons": [
+        "Matches the selected occasion",
+        "Uses colors that are easy to wear together",
+        "Fits the available weather information"
+      ],
+      "reason_codes": [
+        "occasion",
+        "color_harmony",
+        "weather"
+      ],
+      "signals_used": [
+        "occasion_match",
+        "color_harmony",
+        "weather_suitability"
+      ],
+      "model_version": "muse-v1"
+    }
+  ],
+  "ranking": {
+    "method": "baseline_weighted_features",
+    "learned_model": false,
+    "feedback_events": 0,
+    "feedback_min_events": 3,
+    "feedback_applied": false
+  },
+  "warnings": [],
+  "excluded_items": [
+    {
+      "item_id": "item-004",
+      "rules": [
+        "temperature_range"
+      ]
+    }
+  ],
+  "message": "Recommendations use only garments from the supplied wardrobe."
+}

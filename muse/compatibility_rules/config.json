@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "exclude_availability": ["unavailable", "laundry"],
+  "color_clash_is_hard_rule": false,
+  "style_preference_is_hard_rule": false,
+  "dismissal_is_hard_rule": false,
+  "occasions": {
+    "formal": { "reject_formality": ["casual", "athletic"] },
+    "casual": { "reject_formality": ["formal"] },
+    "work": { "reject_formality": ["athletic"] },
+    "smart-casual": { "reject_formality": ["athletic"] }
+  }
+}

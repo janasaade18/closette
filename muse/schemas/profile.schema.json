@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://closette.local/muse/profile.schema.json",
+  "title": "Muse profile",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "preferred_styles": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "favorite_colors": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "disliked_colors": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "preferred_garment_types": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "explicit_preferences": { "type": "array", "items": { "type": "string" } },
+    "avoid_garment_ids": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "avoid_subcategories": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "avoid_categories": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+  }
+}
