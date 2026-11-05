@@ -4,6 +4,8 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { SupabaseModule } from './supabase/supabase.module';
 import { GarmentsModule } from './garments/garments.module';
+import { ScansModule } from './scans/scans.module';
+import { ShoesModule } from './shoes/shoes.module';
 
 @Module({
   imports: [
@@ -12,7 +14,9 @@ import { GarmentsModule } from './garments/garments.module';
       envFilePath: '.env',
     }),
     SupabaseModule,
+    ScansModule,
     GarmentsModule,
+    ShoesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
