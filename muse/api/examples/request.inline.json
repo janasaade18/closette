@@ -1,0 +1,35 @@
+{
+  "user_id": "user-123",
+  "occasion": "casual",
+  "weather": { "temperature_c": 22 },
+  "limit": 3,
+  "profile": {
+    "preferred_styles": ["minimal"],
+    "favorite_colors": ["navy", "white"],
+    "disliked_colors": ["pink"]
+  },
+  "wardrobe": [
+    {
+      "id": "item-001",
+      "category": "tops",
+      "subcategory": "t-shirt",
+      "colors": { "primary": "navy" },
+      "formality": "casual",
+      "availability": "clean"
+    },
+    {
+      "id": "item-002",
+      "category": "bottoms",
+      "subcategory": "jeans",
+      "colors": { "primary": "blue" },
+      "formality": "casual"
+    },
+    {
+      "id": "item-003",
+      "category": "footwear",
+      "subcategory": "sneakers",
+      "colors": { "primary": "white" },
+      "formality": "casual"
+    }
+  ]
+}

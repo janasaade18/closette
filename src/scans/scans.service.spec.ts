@@ -50,10 +50,10 @@ describe('ScansService', () => {
           return Promise.resolve(null);
         }
         scan.frames.push({
-          id: `frame-${scan.frames.length}`,
-          url: 'https://cdn.example/frame.jpg',
-          storagePath: 'path.jpg',
           ...frame,
+          id: `frame-${scan.frames.length}`,
+          url: frame.url ?? 'https://cdn.example/frame.jpg',
+          storagePath: frame.storagePath ?? 'path.jpg',
         });
         return Promise.resolve(scan);
       }),

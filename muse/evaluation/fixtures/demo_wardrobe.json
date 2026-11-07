@@ -1,0 +1,47 @@
+{
+  "user-123": [
+    {
+      "id": "item-001",
+      "category": "tops",
+      "subcategory": "t-shirt",
+      "colors": { "primary": "navy" },
+      "pattern": "solid",
+      "formality": "casual",
+      "style_tags": ["minimal"],
+      "seasons": ["spring", "summer"],
+      "temperature_range_c": { "min_c": 16, "max_c": 32 },
+      "availability": "clean"
+    },
+    {
+      "id": "item-002",
+      "category": "bottoms",
+      "subcategory": "jeans",
+      "colors": { "primary": "blue" },
+      "pattern": "solid",
+      "formality": "casual",
+      "style_tags": ["minimal"],
+      "temperature_range_c": { "min_c": 10, "max_c": 28 },
+      "availability": "available"
+    },
+    {
+      "id": "item-003",
+      "category": "footwear",
+      "subcategory": "sneakers",
+      "colors": { "primary": "white" },
+      "pattern": "solid",
+      "formality": "casual",
+      "style_tags": ["minimal"],
+      "temperature_range_c": { "min_c": 10, "max_c": 32 }
+    },
+    {
+      "id": "item-004",
+      "category": "outerwear",
+      "subcategory": "jacket",
+      "colors": { "primary": "beige" },
+      "pattern": "solid",
+      "formality": "casual",
+      "temperature_range_c": { "min_c": 8, "max_c": 18 },
+      "availability": "available"
+    }
+  ]
+}

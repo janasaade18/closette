@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://closette.local/muse/garment.schema.json",
+  "title": "Muse garment",
+  "type": "object",
+  "required": ["id"],
+  "additionalProperties": true,
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "category": { "type": "string", "enum": ["tops", "bottoms", "one-piece", "outerwear", "footwear", "accessories"] },
+    "subcategory": { "type": "string" },
+    "colors": {
+      "type": "object",
+      "properties": {
+        "primary": { "type": "string" },
+        "secondary": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "primary_color": { "type": "string" },
+    "secondary_colors": { "type": "array", "items": { "type": "string" } },
+    "pattern": { "type": "string" },
+    "season": { "type": "string" },
+    "seasons": { "type": "array", "items": { "type": "string", "enum": ["spring", "summer", "fall", "winter", "autumn"] } },
+    "temperature_range_c": {
+      "type": "object",
+      "properties": {
+        "min_c": { "type": "number" },
+        "max_c": { "type": "number" }
+      }
+    },
+    "formality": { "type": "string" },
+    "style_tags": { "type": "array", "items": { "type": "string" } },
+    "availability": { "type": "string" },
+    "unsuitable_conditions": { "type": "array", "items": { "type": "string" } },
+    "incompatible_with": { "type": "array", "items": { "type": "string" } }
+  }
+}
