@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import { spawn } from 'child_process';
 import { AppearanceService } from './appearance.service';
+import { MlRunnerService } from './ml-runner.service';
 
 jest.mock('child_process', () => ({
   spawn: jest.fn(),
@@ -25,7 +26,7 @@ function fakeProcess(stdout: string, code = 0) {
 }
 
 describe('AppearanceService', () => {
-  const service = new AppearanceService();
+  const service = new AppearanceService(new MlRunnerService());
   const file = {
     buffer: Buffer.from('photo'),
     mimetype: 'image/jpeg',
