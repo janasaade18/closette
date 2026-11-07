@@ -1,0 +1,9 @@
+{
+  "recommendation_id": "rec-ca486f2362dd",
+  "outfit_id": "outfit-1aa3347550c4",
+  "action": "dislike",
+  "reason": {
+    "code": "color",
+    "note": "too much navy"
+  }
+}

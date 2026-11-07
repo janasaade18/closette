@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from paths import CLASSIFIER_WEIGHTS, FASHIONCLIP_DIR
+from paths import CLASSIFIER_WEIGHTS, FASHIONCLIP_DIR, require_local_model
 from taxonomy import class_names, load_taxonomy, prompts
 
 os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
@@ -65,10 +65,9 @@ class ZeroShotClassifier:
         from transformers import CLIPModel, CLIPProcessor
 
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        source = _model_source(FASHIONCLIP_DIR, FASHIONCLIP_ID, "FashionCLIP")
-        local_only = source != FASHIONCLIP_ID
-        self._processor = CLIPProcessor.from_pretrained(source, local_files_only=local_only)
-        self._model = CLIPModel.from_pretrained(source, local_files_only=local_only)
+        folder = require_local_model(FASHIONCLIP_DIR, "FashionCLIP")
+        self._processor = CLIPProcessor.from_pretrained(folder, local_files_only=True)
+        self._model = CLIPModel.from_pretrained(folder, local_files_only=True)
         self._model.to(self._device)
         self._model.eval()
 
@@ -154,15 +153,6 @@ def _require(module: str) -> None:
         __import__(module)
     except ImportError as exc:
         raise ImportError(f"{module} is required to classify garments") from exc
-
-
-def _model_source(folder: Path, hub_id: str, _name: str) -> str:
-    """Prefer vendored weights; fall back to Hugging Face when LFS files are empty."""
-    config = folder / "config.json"
-    weight = folder / "model.safetensors"
-    if config.is_file() and weight.is_file() and weight.stat().st_size > 1_000_000:
-        return str(folder)
-    return hub_id
 
 
 def _unit(vector: np.ndarray) -> list[float]:

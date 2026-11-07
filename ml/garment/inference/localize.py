@@ -12,7 +12,7 @@ from dataclasses import dataclass
 import numpy as np
 from PIL import Image
 
-from paths import SEGFORMER_DIR
+from paths import SEGFORMER_DIR, require_local_model
 
 # Checked against the checkpoint id2label before use.
 EXPECTED_LABELS = {
@@ -222,17 +222,9 @@ class SegFormerSegmenter:
         from transformers import AutoModelForSemanticSegmentation, SegformerImageProcessor
 
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        weight = SEGFORMER_DIR / "model.safetensors"
-        if weight.is_file() and weight.stat().st_size > 1_000_000:
-            source = str(SEGFORMER_DIR)
-            local_only = True
-        else:
-            source = SEGFORMER_ID
-            local_only = False
-        self._processor = SegformerImageProcessor.from_pretrained(source, local_files_only=local_only)
-        self._model = AutoModelForSemanticSegmentation.from_pretrained(
-            source, local_files_only=local_only
-        )
+        folder = require_local_model(SEGFORMER_DIR, "SegFormer")
+        self._processor = SegformerImageProcessor.from_pretrained(folder, local_files_only=True)
+        self._model = AutoModelForSemanticSegmentation.from_pretrained(folder, local_files_only=True)
         labels = {int(key): value for key, value in self._model.config.id2label.items()}
         for index, name in EXPECTED_LABELS.items():
             if labels.get(index) != name:

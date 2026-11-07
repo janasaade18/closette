@@ -1,0 +1,15 @@
+{
+  "name": "@closette/muse",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Muse, Closette's outfit recommendation engine",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test",
+    "start": "node api/server.js",
+    "evaluate": "node evaluation/evaluate.js"
+  }
+}

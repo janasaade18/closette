@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://closette.local/muse/recommend-response.schema.json",
+  "title": "Muse recommend response",
+  "type": "object",
+  "required": ["api_version", "model_version", "status", "recommendations"],
+  "properties": {
+    "api_version": { "const": "v1" },
+    "model_version": { "const": "muse-v1" },
+    "status": { "enum": ["ok", "empty_wardrobe", "insufficient_candidates", "error"] },
+    "score_semantics": { "const": "weighted_average_of_active_features_not_a_probability" },
+    "recommendation_id": { "type": "string" },
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["outfit_id", "items", "score", "reasons", "model_version"],
+        "properties": {
+          "outfit_id": { "type": "string" },
+          "items": { "type": "array", "items": { "type": "string" } },
+          "score": { "type": "number", "minimum": 0, "maximum": 1 },
+          "reasons": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+          "model_version": { "const": "muse-v1" }
+        }
+      }
+    },
+    "error": { "type": "string" },
+    "message": { "type": "string" }
+  }
+}

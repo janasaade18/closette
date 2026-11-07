@@ -3,7 +3,6 @@ import {
   Controller,
   Get,
   Post,
-  Query,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -13,12 +12,10 @@ import {
   ApiConsumes,
   ApiOkResponse,
   ApiOperation,
-  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
 import { AppearanceService } from './appearance.service';
-import { ClassifyService } from './classify.service';
 import { AnalyzeAppearanceDto } from './dto/analyze-appearance.dto';
 import { GarmentsService } from './garments.service';
 
@@ -28,7 +25,6 @@ export class GarmentsController {
   constructor(
     private readonly garmentsService: GarmentsService,
     private readonly appearanceService: AppearanceService,
-    private readonly classifyService: ClassifyService,
   ) {}
 
   @Get('taxonomy')
@@ -40,53 +36,6 @@ export class GarmentsController {
   })
   getTaxonomy() {
     return this.garmentsService.getTaxonomy();
-  }
-
-  @Post('classify')
-  @ApiOperation({
-    summary: 'Name the primary garment in one photo',
-    description:
-      'Proxies to the Python garment-type service (FashionCLIP + SegFormer). Returns category, subcategory, confidence, optional bbox, and review status.',
-  })
-  @ApiConsumes('multipart/form-data')
-  @ApiQuery({ name: 'include_mask', required: false, type: Boolean })
-  @ApiQuery({ name: 'include_embedding', required: false, type: Boolean })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      required: ['file'],
-      properties: {
-        file: { type: 'string', format: 'binary' },
-      },
-    },
-  })
-  @ApiOkResponse({
-    description: 'Classify contract from ml/garment/docs/CONTRACT.md',
-  })
-  @UseInterceptors(
-    FileInterceptor('file', {
-      storage: memoryStorage(),
-      limits: { fileSize: 12 * 1024 * 1024 },
-    }),
-  )
-  classify(
-    @UploadedFile() file: Express.Multer.File,
-    @Query('include_mask') includeMask?: string,
-    @Query('include_embedding') includeEmbedding?: string,
-  ) {
-    return this.classifyService.classify(file, {
-      include_mask: includeMask,
-      include_embedding: includeEmbedding,
-    });
-  }
-
-  @Post('corrections')
-  @ApiOperation({
-    summary: 'Store a user correction for a garment prediction',
-  })
-  @ApiOkResponse({ description: 'Correction accepted for later review' })
-  corrections(@Body() body: Record<string, unknown>) {
-    return this.classifyService.corrections(body);
   }
 
   @Post('appearance')
