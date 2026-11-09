@@ -1,16 +1,13 @@
 import {
-  BadGatewayException,
   BadRequestException,
-  GatewayTimeoutException,
   Injectable,
   InternalServerErrorException,
-  ServiceUnavailableException,
 } from '@nestjs/common';
-import { spawn } from 'child_process';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { AnalyzeAppearanceDto } from './dto/analyze-appearance.dto';
+import { MlRunnerService } from './ml-runner.service';
 
 const SCRIPT_DIR = join(process.cwd(), 'ml', 'garment', 'color_pattern');
 const PIPELINE = join(SCRIPT_DIR, 'pipeline.py');
@@ -42,6 +39,8 @@ export type AppearanceResult = {
 
 @Injectable()
 export class AppearanceService {
+  constructor(private readonly mlRunner: MlRunnerService) {}
+
   async analyze(
     file: Express.Multer.File | undefined,
     dto: AnalyzeAppearanceDto,
@@ -71,7 +70,12 @@ export class AppearanceService {
       if (dto.k != null) {
         args.push('--k', String(dto.k));
       }
-      const stdout = await this.runPython(args);
+      const stdout = await this.mlRunner.runPython(
+        args,
+        SCRIPT_DIR,
+        TIMEOUT_MS,
+        'Garment appearance timed out',
+      );
       return this.parseResult(stdout);
     } finally {
       await rm(directory, { recursive: true, force: true });
@@ -103,45 +107,5 @@ export class AppearanceService {
         'Appearance pipeline returned invalid JSON',
       );
     }
-  }
-
-  private runPython(args: string[]): Promise<string> {
-    const python = process.env.CLOSETTE_PYTHON || 'python';
-    return new Promise((resolve, reject) => {
-      const child = spawn(python, args, {
-        cwd: SCRIPT_DIR,
-        windowsHide: true,
-      });
-      let stdout = '';
-      let stderr = '';
-      const timer = setTimeout(() => {
-        child.kill();
-        reject(new GatewayTimeoutException('Garment appearance timed out'));
-      }, TIMEOUT_MS);
-
-      child.stdout.on('data', (chunk: Buffer) => {
-        stdout += chunk.toString();
-      });
-      child.stderr.on('data', (chunk: Buffer) => {
-        stderr += chunk.toString();
-      });
-      child.on('error', (error) => {
-        clearTimeout(timer);
-        reject(
-          new ServiceUnavailableException(
-            `Python failed to start: ${error.message}`,
-          ),
-        );
-      });
-      child.on('close', (code) => {
-        clearTimeout(timer);
-        if (code !== 0) {
-          const detail = stderr.trim().split('\n').at(-1) || `exit ${code}`;
-          reject(new BadGatewayException(detail));
-          return;
-        }
-        resolve(stdout);
-      });
-    });
   }
 }

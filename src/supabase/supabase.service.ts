@@ -53,4 +53,47 @@ export class SupabaseService {
       .getPublicUrl(path);
     return data.publicUrl;
   }
+
+  getWardrobeImagesBucket(): string {
+    return (
+      this.configService.get<string>('SUPABASE_WARDROBE_IMAGES_BUCKET') ??
+      'wardrobe-images'
+    );
+  }
+
+  async uploadWardrobeCutout(path: string, buffer: Buffer): Promise<string> {
+    const bucket = this.getWardrobeImagesBucket();
+    const { error } = await this.client.storage
+      .from(bucket)
+      .upload(path, buffer, {
+        contentType: 'image/png',
+        upsert: false,
+      });
+
+    if (error) {
+      throw new InternalServerErrorException(
+        `Failed to store wardrobe cutout: ${error.message}`,
+      );
+    }
+
+    const { data } = this.client.storage.from(bucket).getPublicUrl(path);
+    return data.publicUrl;
+  }
+
+  async insertGarment(
+    row: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const response = await this.client
+      .from('garments')
+      .insert(row)
+      .select()
+      .single();
+
+    if (response.error) {
+      throw new InternalServerErrorException(
+        `Failed to save garment: ${response.error.message}`,
+      );
+    }
+    return response.data as Record<string, unknown>;
+  }
 }

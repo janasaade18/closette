@@ -41,6 +41,20 @@ Classify one file without the server:
 python infer.py photo.jpg
 ```
 
+## Lighting and cutout save prep
+
+```bash
+python -m quality.cli photo.jpg --mode lighting
+python -m quality.cli photo.jpg --mode prepare --cutout-out cutout.png
+```
+
+`quality/LIGHTING.md` is the contract for the live red border. Nest routes:
+
+- `POST /garments/lighting-check` — hard lighting gate
+- `POST /garments/save` — lighting gate, classify, SegFormer RGBA cutout, Supabase insert
+
+Apply `supabase/migrations/20261107_garments_wardrobe.sql` and create the `wardrobe-images` bucket before save works.
+
 ## What the response means
 
 `category` and `subcategory` are ids from `taxonomy.json` (version 2). `confidence` is the top softmax score between 0 and 1. It is not a calibrated probability.
