@@ -1,0 +1,6 @@
+{
+  "status": "error",
+  "error": "unsupported_format",
+  "message": "Use a JPEG, PNG, or WebP photograph.",
+  "model_version": "closet-classifier-v1"
+}

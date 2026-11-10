@@ -1,0 +1,20 @@
+{
+  "status": "unclear",
+  "category": null,
+  "subcategory": null,
+  "confidence": null,
+  "bbox": null,
+  "mask": null,
+  "embedding": null,
+  "model_version": "closet-classifier-v1",
+  "reason": "no_garment",
+  "alternatives": null,
+  "latency_ms": 90.0,
+  "models": {
+    "classifier": "fashion-clip",
+    "classifier_id": "patrickjohncyh/fashion-clip",
+    "segmenter": "segformer-b2-clothes",
+    "taxonomy_version": 2,
+    "embedding_dim": null
+  }
+}

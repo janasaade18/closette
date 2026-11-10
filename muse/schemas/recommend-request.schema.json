@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://closette.local/muse/recommend-request.schema.json",
+  "title": "POST /v1/outfits/recommend",
+  "type": "object",
+  "required": ["user_id"],
+  "anyOf": [{ "required": ["wardrobe"] }, { "required": ["wardrobe_item_ids"] }],
+  "properties": {
+    "user_id": { "type": "string", "minLength": 1 },
+    "occasion": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "season": { "type": "string", "enum": ["spring", "summer", "fall", "winter", "autumn"] },
+    "weather": {
+      "type": "object",
+      "properties": {
+        "temperature_c": { "type": "number", "minimum": -80, "maximum": 60 },
+        "condition": { "type": "string" }
+      }
+    },
+    "limit": { "type": "integer", "minimum": 1, "maximum": 10 },
+    "wardrobe": { "type": "array", "items": { "$ref": "garment.schema.json" } },
+    "wardrobe_item_ids": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "profile": { "$ref": "profile.schema.json" },
+    "preferences_override": { "$ref": "profile.schema.json" },
+    "personalization": { "const": "baseline" }
+  }
+}

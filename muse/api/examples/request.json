@@ -1,0 +1,14 @@
+{
+  "user_id": "user-123",
+  "occasion": "casual",
+  "weather": {
+    "temperature_c": 22
+  },
+  "wardrobe_item_ids": [
+    "item-001",
+    "item-002",
+    "item-003",
+    "item-004"
+  ],
+  "limit": 3
+}

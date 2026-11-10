@@ -1,0 +1,22 @@
+{
+  "status": "success",
+  "category": "tops",
+  "subcategory": "t-shirt",
+  "confidence": 0.94,
+  "bbox": [120, 80, 720, 900],
+  "mask": null,
+  "embedding": null,
+  "model_version": "closet-classifier-v1",
+  "reason": null,
+  "alternatives": [
+    { "category": "tops", "subcategory": "t-shirt", "confidence": 0.94 }
+  ],
+  "latency_ms": 180.0,
+  "models": {
+    "classifier": "fashion-clip",
+    "classifier_id": "patrickjohncyh/fashion-clip",
+    "segmenter": "segformer-b2-clothes",
+    "taxonomy_version": 2,
+    "embedding_dim": null
+  }
+}
