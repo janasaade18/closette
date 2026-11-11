@@ -37,6 +37,18 @@ def store_correction(body: dict, path: Path | None = None) -> dict:
         "accepted_for_training": False,
         "recorded_at": datetime.now(timezone.utc).isoformat(),
     }
+    # Optional look fields — stored for later fine-tuning / review.
+    for key in (
+        "predicted_pattern",
+        "corrected_pattern",
+        "predicted_texture",
+        "corrected_texture",
+        "predicted_color",
+        "corrected_color",
+    ):
+        value = body.get(key)
+        if value is not None and value != "":
+            record[key] = str(value)
     destination = CORRECTIONS if path is None else path
     destination.parent.mkdir(parents=True, exist_ok=True)
     with destination.open("a", encoding="utf-8") as handle:

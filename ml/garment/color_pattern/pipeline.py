@@ -139,10 +139,11 @@ def _mask_array(mask: dict | None) -> np.ndarray | None:
     source_width = int(mask.get("source_width") or width)
     source_height = int(mask.get("source_height") or height)
     if (source_height, source_width) != small.shape:
-        image = Image.fromarray(small * 255)
-        image = image.resize((source_width, source_height), Image.Resampling.NEAREST)
-        small = np.asarray(image) > 0
-    return small
+        image = Image.fromarray((small * 255).astype(np.uint8))
+        # Bilinear + threshold recovers thin regions better than nearest.
+        image = image.resize((source_width, source_height), Image.Resampling.BILINEAR)
+        small = np.asarray(image) >= 128
+    return small.astype(bool)
 
 
 def _detections(

@@ -28,10 +28,17 @@ function readBody(req, maxBytes) {
   });
 }
 
+const CORS_HEADERS = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "GET,POST,OPTIONS",
+  "access-control-allow-headers": "content-type",
+};
+
 function send(res, result) {
   const payload = JSON.stringify(result.body);
   res.writeHead(result.statusCode, {
     "content-type": "application/json; charset=utf-8",
+    ...CORS_HEADERS,
   });
   res.end(payload);
 }
@@ -45,6 +52,11 @@ export function createServer(options = {}) {
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     try {
+      if (req.method === "OPTIONS") {
+        res.writeHead(204, CORS_HEADERS);
+        res.end();
+        return;
+      }
       if (req.method === "GET" && url.pathname === "/health") {
         send(res, {
           statusCode: 200,
@@ -111,8 +123,9 @@ function main() {
   const args = parseArgs(process.argv);
   const store = args.data ? new FileMuseStore(args.data) : new MemoryMuseStore();
   const server = createServer({ store, catalog: loadCatalog(args.wardrobe) });
-  server.listen(args.port, "127.0.0.1", () => {
-    process.stdout.write(`Muse listening on http://127.0.0.1:${args.port}\n`);
+  const host = process.env.MUSE_HOST || "0.0.0.0";
+  server.listen(args.port, host, () => {
+    process.stdout.write(`Muse listening on http://${host}:${args.port}\n`);
   });
 }
 

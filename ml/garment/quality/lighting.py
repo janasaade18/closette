@@ -1,7 +1,8 @@
 """Fast lighting check for wardrobe capture.
 
 The phone can mirror these metrics on each preview frame for a red border.
-The server reuses the same rules as a hard gate before classify or save.
+Save prep still records the score, but does not hard-reject on lighting —
+gallery and product photos are too useful to block.
 """
 
 from __future__ import annotations

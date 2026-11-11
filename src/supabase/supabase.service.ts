@@ -80,6 +80,23 @@ export class SupabaseService {
     return data.publicUrl;
   }
 
+  async ensureProfile(profileId: string, displayName?: string | null) {
+    const { error } = await this.client.from('profiles').upsert(
+      {
+        id: profileId,
+        role: 'member',
+        display_name: displayName ?? null,
+      },
+      { onConflict: 'id' },
+    );
+
+    if (error) {
+      throw new InternalServerErrorException(
+        `Failed to ensure Closette profile: ${error.message}`,
+      );
+    }
+  }
+
   async insertGarment(
     row: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
@@ -95,5 +112,61 @@ export class SupabaseService {
       );
     }
     return response.data as Record<string, unknown>;
+  }
+
+  async listGarmentsForProfile(
+    profileId: string,
+  ): Promise<Record<string, unknown>[]> {
+    const { data, error } = await this.client
+      .from('garments')
+      .select('*')
+      .eq('profile_id', profileId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw new InternalServerErrorException(
+        `Failed to list garments: ${error.message}`,
+      );
+    }
+    return (data ?? []) as Record<string, unknown>[];
+  }
+
+  async deleteGarment(garmentId: string, profileId: string) {
+    const { data: existing, error: loadError } = await this.client
+      .from('garments')
+      .select('id, cutout_path')
+      .eq('id', garmentId)
+      .eq('profile_id', profileId)
+      .maybeSingle();
+
+    if (loadError) {
+      throw new InternalServerErrorException(
+        `Failed to load garment: ${loadError.message}`,
+      );
+    }
+    if (!existing) {
+      return { deleted: false };
+    }
+
+    const cutoutPath =
+      typeof existing.cutout_path === 'string' ? existing.cutout_path : null;
+    if (cutoutPath) {
+      await this.client.storage
+        .from(this.getWardrobeImagesBucket())
+        .remove([cutoutPath]);
+    }
+
+    const { error } = await this.client
+      .from('garments')
+      .delete()
+      .eq('id', garmentId)
+      .eq('profile_id', profileId);
+
+    if (error) {
+      throw new InternalServerErrorException(
+        `Failed to delete garment: ${error.message}`,
+      );
+    }
+    return { deleted: true };
   }
 }

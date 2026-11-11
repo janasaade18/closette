@@ -40,21 +40,8 @@ def main() -> None:
         print(json.dumps(lighting, indent=2))
         return
 
-    if not lighting["ok"]:
-        print(
-            json.dumps(
-                {
-                    "status": "rejected",
-                    "reason": "bad_lighting",
-                    "lighting": lighting,
-                    "garments": [],
-                    "cutout_path": None,
-                },
-                indent=2,
-            )
-        )
-        return
-
+    # Lighting is advisory only on save. Google/stock photos and imperfect
+    # room light should still make it into the closet if a garment is found.
     if str(COLOR_PATTERN) not in sys.path:
         sys.path.insert(0, str(COLOR_PATTERN))
     if str(GARMENT_ROOT) not in sys.path:
@@ -83,8 +70,12 @@ def main() -> None:
 
     item = _item_from_type(typed)
     garment = _describe(image, item, args.k)
-    mask = item.get("mask")
-    cutout = rgba_cutout(image, mask if hasattr(mask, "shape") else None, box=garment.get("box"))
+    # Prefer a fresh full-res SegFormer mask (no RLE round-trip) for cutouts.
+    mask = _full_resolution_cutout_mask(image)
+    if mask is None:
+        mask = item.get("mask")
+        mask = mask if hasattr(mask, "shape") else None
+    cutout = rgba_cutout(image, mask, box=garment.get("box"))
     cutout_path = args.cutout_out
     if cutout_path is None:
         cutout_path = args.image.with_name("cutout.png")
@@ -107,6 +98,21 @@ def main() -> None:
     )
 
 
+def _full_resolution_cutout_mask(image: Image.Image):
+    """Run SegFormer once more for an unscaled cutout mask, or None on failure."""
+    try:
+        if str(GARMENT_ROOT) not in sys.path:
+            sys.path.insert(0, str(GARMENT_ROOT))
+        from inference.localize import SegFormerSegmenter
+
+        localization = SegFormerSegmenter().segment(image)
+        if localization is None:
+            return None
+        return localization.mask
+    except Exception:
+        return None
+
+
 def _json_default(value):
     if isinstance(value, Path):
         return str(value)
@@ -115,3 +121,4 @@ def _json_default(value):
 
 if __name__ == "__main__":
     main()
+

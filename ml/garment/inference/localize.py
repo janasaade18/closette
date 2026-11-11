@@ -51,6 +51,21 @@ GARMENT_LABELS = {
 
 SHOE_LABELS = {"Left-shoe", "Right-shoe"}
 
+# SegFormer often paints sleeves/folds as arms or legs. Keep those labels so
+# fabric sleeves survive, then quality.cutout drops bare-skin pixels.
+CUTOUT_LABELS = {
+    "Hat": {"Hat"},
+    "Upper-clothes": {"Upper-clothes", "Left-arm", "Right-arm"},
+    "Skirt": {"Skirt", "Left-leg", "Right-leg"},
+    "Pants": {"Pants", "Left-leg", "Right-leg"},
+    "Dress": {"Dress", "Left-arm", "Right-arm", "Left-leg", "Right-leg"},
+    "Belt": {"Belt"},
+    "Left-shoe": SHOE_LABELS,
+    "Right-shoe": SHOE_LABELS,
+    "Bag": {"Bag"},
+    "Scarf": {"Scarf"},
+}
+
 # Coarse mask labels that may agree with a Closette category.
 # A skirt region is a bottom. Dress has its own mask class, so a skirt
 # outline must not count as agreement with a dress prediction.
@@ -102,8 +117,11 @@ def localization_from_label_map(
     if best_name is None or best_count / total < min_area_ratio:
         return None
 
-    mask = np.isin(label_map, _ids_for(best_name))
+    # Primary class alone leaves sleeve/leg holes on many product photos.
+    mask = mask_for_cutout(label_map, best_name)
     ys, xs = np.nonzero(mask)
+    if ys.size == 0:
+        return None
     bbox = (int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1)
     return Localization(
         bbox=bbox,
@@ -111,6 +129,17 @@ def localization_from_label_map(
         coarse_label=best_name,
         groups=set(COARSE_GROUPS[best_name]),
     )
+
+
+def mask_for_cutout(label_map: np.ndarray, primary_label: str) -> np.ndarray:
+    """Binary mask that keeps the garment plus closely related body parts."""
+    names = CUTOUT_LABELS.get(primary_label, {primary_label})
+    ids = [
+        index
+        for index, label in EXPECTED_LABELS.items()
+        if label in names
+    ]
+    return np.isin(label_map, ids)
 
 
 def _ids_for(name: str) -> list[int]:
@@ -135,7 +164,7 @@ def padded_box(
     )
 
 
-def encode_rle(mask: np.ndarray, *, max_side: int = 384) -> dict:
+def encode_rle(mask: np.ndarray, *, max_side: int = 768) -> dict:
     """Downscale a binary mask and run-length encode it. Counts start with background."""
     image = Image.fromarray(mask.astype(np.uint8) * 255)
     height, width = mask.shape
@@ -145,7 +174,9 @@ def encode_rle(mask: np.ndarray, *, max_side: int = 384) -> dict:
             int(round(width * scale)),
             int(round(height * scale)),
         )
-        image = image.resize(resized, Image.Resampling.NEAREST)
+        # Bilinear keeps thin sleeves better than nearest when downscaling.
+        image = image.resize(resized, Image.Resampling.BILINEAR)
+        image = image.point(lambda value: 255 if value >= 128 else 0)
     values = np.asarray(image) > 0
     flat = values.astype(np.uint8).ravel()
     counts: list[int] = []

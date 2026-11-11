@@ -14,6 +14,7 @@ describe('SaveGarmentService', () => {
 
   const mlRunner = new MlRunnerService();
   const supabase = {
+    ensureProfile: jest.fn(),
     uploadWardrobeCutout: jest.fn(),
     insertGarment: jest.fn(),
   };
@@ -24,15 +25,17 @@ describe('SaveGarmentService', () => {
 
   beforeEach(() => {
     jest.restoreAllMocks();
+    supabase.ensureProfile.mockReset();
     supabase.uploadWardrobeCutout.mockReset();
     supabase.insertGarment.mockReset();
+    supabase.ensureProfile.mockResolvedValue(undefined);
   });
 
-  it('rejects bad lighting and never uploads', async () => {
+  it('rejects when no garment is found and never uploads', async () => {
     jest.spyOn(mlRunner, 'runPython').mockResolvedValue(
       JSON.stringify({
-        status: 'rejected',
-        reason: 'bad_lighting',
+        status: 'unclear',
+        reason: 'no_garment',
         lighting: {
           ok: false,
           score: 0.2,
@@ -51,7 +54,7 @@ describe('SaveGarmentService', () => {
     expect(supabase.insertGarment).not.toHaveBeenCalled();
   });
 
-  it('uploads the cutout and inserts a row when lighting passes', async () => {
+  it('uploads the cutout even when lighting score is imperfect', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'closette-save-test-'));
     const cutoutPath = join(directory, 'cutout.png');
     await writeFile(cutoutPath, Buffer.from([137, 80, 78, 71]));
@@ -59,7 +62,12 @@ describe('SaveGarmentService', () => {
     jest.spyOn(mlRunner, 'runPython').mockResolvedValue(
       JSON.stringify({
         status: 'success',
-        lighting: { ok: true, score: 0.9, issues: [], guidance: 'good' },
+        lighting: {
+          ok: false,
+          score: 0.55,
+          issues: ['highlight_clip'],
+          guidance: 'soft spots',
+        },
         garments: [
           {
             category: 'tops',
@@ -87,6 +95,7 @@ describe('SaveGarmentService', () => {
       profileId: '11111111-1111-1111-1111-111111111111',
     });
 
+    expect(supabase.ensureProfile).toHaveBeenCalled();
     expect(supabase.uploadWardrobeCutout).toHaveBeenCalled();
     expect(supabase.insertGarment).toHaveBeenCalled();
     expect(result.status).toBe('saved');

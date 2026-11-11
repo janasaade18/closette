@@ -95,12 +95,8 @@ export class SaveGarmentService {
       );
       const prepared = this.parse(stdout);
 
-      if (prepared.status === 'rejected' || prepared.lighting?.ok === false) {
-        throw new UnprocessableEntityException({
-          message: 'Lighting is not good enough to save this garment',
-          lighting: prepared.lighting,
-        });
-      }
+      // Lighting scores stay on the row for later coaching — they no longer
+      // block wardrobe saves (gallery / product photos often fail the gate).
       if (prepared.status !== 'success' || !prepared.garments?.length) {
         throw new UnprocessableEntityException({
           message: prepared.reason || 'No garment found to save',
@@ -113,6 +109,7 @@ export class SaveGarmentService {
       }
 
       const garment = prepared.garments[0];
+      await this.supabase.ensureProfile(dto.profileId);
       const cutoutBuffer = await readFile(prepared.cutout_path);
       const storagePath = `${dto.profileId}/${randomUUID()}.png`;
       const cutoutUrl = await this.supabase.uploadWardrobeCutout(
