@@ -357,7 +357,20 @@ export function recommend(request, deps = {}) {
 
   const candidates = generated.filter((outfit) => outfitViolations(outfit).length === 0);
   const ranked = rankOutfits(candidates, value.context, profile, history, config, learnedModel, userModel);
-  const selected = selectDiverse(ranked, value.limit, config);
+  const coolNeed =
+    value.context.weather?.condition === "rain" ||
+    value.context.weather?.condition === "snow" ||
+    value.context.weather?.condition === "cold" ||
+    (typeof tempC === "number" && tempC <= (config.coldTempC ?? 18));
+  // When Market can fill a layer, never lead with a bare short-sleeve look.
+  const rankedForSelect =
+    coolNeed && marketplaceOn
+      ? (() => {
+          const layered = ranked.filter((outfit) => outfit.roles?.outerwear);
+          return layered.length ? [...layered, ...ranked.filter((outfit) => !outfit.roles?.outerwear)] : ranked;
+        })()
+      : ranked;
+  const selected = selectDiverse(rankedForSelect, value.limit, config);
   rankingMeta.feedback_applied = selected.some((outfit) => outfit.feedback_applied);
   rankingMeta.personalization_applied = selected.some((outfit) => outfit.personalization_applied);
   const usage = summarizeMarketplaceUsage(selected);

@@ -288,6 +288,14 @@ export function scoreOutfit(outfit, context, profile, events, config, learnedMod
     signalsUsed.push("formality_cohesion");
   }
 
+  // Short sleeves alone at <=18° / rain look unfinished — push jackets ahead hard.
+  if (suggestsCoolLayer(context, config) && !outfit.roles?.outerwear) {
+    const top = outfit.items?.find((item) => item.role === "top" || item.role === "one_piece");
+    const shortSleeve = ["t-shirt", "tank-top", "polo"].includes(top?.subcategory);
+    score = round4(clamp01(score - (shortSleeve ? 0.28 : 0.16)));
+    signalsUsed.push("missing_cool_layer");
+  }
+
   let explanation = reasonsFor(features, feedback, context, config);
   if (learnedApplied) {
     explanation.reasons = [

@@ -8,7 +8,13 @@ function normalizeGender(value) {
   const raw = value.trim().toLowerCase();
   if (["male", "man", "men", "masculine", "m"].includes(raw)) return "male";
   if (["female", "woman", "women", "feminine", "f"].includes(raw)) return "female";
-  if (["unisex", "all", "any", "nonbinary", "non-binary", "nb"].includes(raw)) return "unisex";
+  if (
+    ["unisex", "all", "any", "nonbinary", "non-binary", "nb", "prefer not to say", "prefer-not-to-say"].includes(
+      raw,
+    )
+  ) {
+    return "unisex";
+  }
   return raw;
 }
 
