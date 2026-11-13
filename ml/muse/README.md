@@ -12,6 +12,7 @@ It does **not** replace Muse’s candidate generation or hard rules. Those stay 
 | `features.py` | Shared feature contract with Node (`muse/ranking/learned.js`) |
 | `train_ranker.py` | Train an MLP ranker and write `weights/ranker-v1.json` |
 | `evaluate.py` | Offline metrics vs the hand-weighted baseline |
+| `evaluate_personalization.py` | Phase 2: MLP vs MLP+LinUCB on simulated user feedback |
 | `requirements.txt` | NumPy + scikit-learn only |
 
 ## Quick start
@@ -22,6 +23,7 @@ python -m pip install -r requirements.txt
 python generate_synthetic.py
 python train_ranker.py
 python evaluate.py
+python evaluate_personalization.py
 ```
 
-Then start Muse as usual. With `ranking_policy: "learned"` in `muse/config/runtime.json`, recommendations use `muse-ranker-v1`.
+Then start Muse as usual. With `ranking_policy: "learned"` and `personalization: "linucb"` in `muse/config/runtime.json`, recommendations use `muse-ranker-v1` and personalize after enough feedback.
