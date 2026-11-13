@@ -171,9 +171,30 @@ function reasonsFor(features, feedback, context, config) {
     add("color_harmony", "Uses colors that are easy to wear together");
   }
   if (weighted("weather_suitability")) add("weather", "Fits the available weather information");
+  if (
+    features.weather_suitability != null &&
+    config.weights.weather_suitability > 0 &&
+    features.weather_suitability < 0.45
+  ) {
+    const temp = context.weather?.temperature_c;
+    if (typeof temp === "number" && temp < (config.coldTempC ?? 18)) {
+      add("weather_warning", "Not ideal for this cold weather");
+    } else if (typeof temp === "number" && temp >= 26) {
+      add("weather_warning", "Not ideal for this hot weather");
+    } else {
+      add("weather_warning", "Not ideal for the current weather");
+    }
+  }
   if (weighted("context_layer")) {
     if (suggestsCoolLayer(context, config)) add("context_layer", "Adds a layer for the cooler conditions");
     else add("context_layer", "Adds a tailored layer for the occasion");
+  }
+  if (
+    suggestsCoolLayer(context, config) &&
+    features.context_layer != null &&
+    features.context_layer < 0.5
+  ) {
+    add("layer_gap", "Cold conditions — a coat or jacket is missing");
   }
   if (feedback.positive && feedback.value != null && feedback.value >= threshold && config.feedbackAdjustmentWeight > 0) {
     add("feedback", "Agrees with outfits you have liked, saved, worn, or purchased");
@@ -245,6 +266,19 @@ export function scoreOutfit(outfit, context, profile, events, config, learnedMod
   if (market.value != null && (config.marketplaceAffinityWeight ?? 0.08) > 0) {
     score = round4(clamp01(score + (config.marketplaceAffinityWeight ?? 0.08) * (market.value - 0.5)));
     signalsUsed.push("marketplace_affinity");
+  }
+
+  // Keep coats/jackets ahead of bare summer cores when the day is cold, even if the MLP is flat.
+  const temp = context.weather?.temperature_c;
+  if (suggestsCoolLayer(context, config) && outfit.roles?.outerwear) {
+    score = round4(clamp01(score + 0.12));
+    signalsUsed.push("cold_layer_boost");
+  } else if (typeof temp === "number" && temp >= 26 && outfit.roles?.outerwear) {
+    const outer = outfit.items?.find((item) => item.role === "outerwear");
+    if (outer && (outer.subcategory === "coat" || outer.subcategory === "trench-coat")) {
+      score = round4(clamp01(score - 0.15));
+      signalsUsed.push("hot_layer_penalty");
+    }
   }
 
   let explanation = reasonsFor(features, feedback, context, config);

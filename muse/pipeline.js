@@ -15,8 +15,10 @@ import {
 import { filterMarketplaceProducts } from "./marketplace/constraints.js";
 import { generateMixedCandidates, publicMarketplaceItems, summarizeMarketplaceUsage } from "./marketplace/mix.js";
 import { retrieveComplements } from "./marketplace/retrieve.js";
+import { applyClimateDefaults, weatherAdvice } from "./weather/defaults.js";
 import { recommendationIdFor } from "./ids.js";
 import { SCORE_NOTE, SCORE_SEMANTICS, apiError } from "./util.js";
+import { RULE } from "./compatibility_rules/rules.js";
 
 export { MemoryMarketplaceCatalog };
 
@@ -285,8 +287,23 @@ export function recommend(request, deps = {}) {
     }, effectiveModelVersion, scoreMeta);
   }
 
-  const normalized = resolved.items.map((raw) => normalizeGarment(raw));
+  const normalized = resolved.items
+    .map((raw) => normalizeGarment(raw))
+    .map((item) => applyClimateDefaults(item));
   const { eligible, excluded } = partitionItems(normalized, value.context, profile, config);
+  const tempC = value.context.weather?.temperature_c;
+  const weatherExcluded = excluded.filter((row) => row.rules.includes(RULE.temperatureRange));
+  const advice = weatherAdvice(tempC);
+  if (weatherExcluded.length) {
+    warnings.push({
+      code: "weather_excluded_items",
+      message:
+        advice ??
+        "Some garments were left out because they do not fit the requested temperature.",
+      item_ids: weatherExcluded.map((row) => row.item_id),
+      temperature_c: typeof tempC === "number" ? tempC : null,
+    });
+  }
 
   let generated;
   let marketplaceRejected = [];
@@ -351,8 +368,45 @@ export function recommend(request, deps = {}) {
 
   const shownIds = selected.map((outfit) => outfit.outfitId);
   const recommendationId = recommendationIdFor(value.userId, value.context, shownIds);
-  const status = selected.length ? "ok" : "insufficient_candidates";
+  const weatherBlocked =
+    !selected.length &&
+    typeof tempC === "number" &&
+    weatherExcluded.length > 0 &&
+    weatherExcluded.length >= Math.max(1, Math.ceil(excluded.length * 0.5));
+  let status = selected.length ? "ok" : weatherBlocked ? "weather_unsuitable" : "insufficient_candidates";
   const mixedSelected = usage.mixed_outfits > 0;
+  const cold = typeof tempC === "number" && tempC < (config.coldTempC ?? 18);
+  const hot = typeof tempC === "number" && tempC >= 26;
+  let message;
+  if (selected.length) {
+    const weakWeather = selected.filter(
+      (outfit) => outfit.features?.weather_suitability != null && outfit.features.weather_suitability < 0.45,
+    );
+    if (weakWeather.length === selected.length && (cold || hot)) {
+      status = "weather_compromise";
+      message = cold
+        ? `These are the best options from your closet, but they are light for ${tempC}°C. A coat or warmer layers would be better.`
+        : `These are the best options from your closet, but they look heavy for ${tempC}°C. Lighter pieces would be better.`;
+      warnings.push({
+        code: "weather_compromise",
+        message,
+        temperature_c: tempC,
+      });
+    } else {
+      message = mixedSelected
+        ? "Recommendations may mix wardrobe pieces with marketplace products that passed constraints."
+        : "Recommendations use garments from the supplied wardrobe.";
+    }
+  } else if (weatherBlocked) {
+    message = cold
+      ? `Nothing in this wardrobe is suitable for ${tempC}°C. Summer pieces like tees and shorts were left out — add trousers, closed shoes, or a coat.`
+      : hot
+        ? `Nothing in this wardrobe is suitable for ${tempC}°C. Heavy coats or winter layers were left out — add lighter tops and breathable pieces.`
+        : `Nothing in this wardrobe fits the requested temperature (${tempC}°C).`;
+  } else {
+    message = "Garments were found, and none formed an outfit that passed the rules.";
+  }
+
   const body = {
     recommendation_id: recommendationId,
     recommendations: selected.map((outfit) => publicOutfit(outfit, effectiveModelVersion)),
@@ -360,11 +414,12 @@ export function recommend(request, deps = {}) {
     warnings,
     excluded_items: excluded,
     marketplace_excluded: marketplaceRejected.slice(0, 20),
-    message: selected.length
-      ? mixedSelected
-        ? "Recommendations may mix wardrobe pieces with marketplace products that passed constraints."
-        : "Recommendations use garments from the supplied wardrobe."
-      : "Garments were found, and none formed an outfit that passed the rules.",
+    weather: {
+      temperature_c: typeof tempC === "number" ? tempC : null,
+      advice,
+      excluded_for_temperature: weatherExcluded.length,
+    },
+    message,
   };
 
   if (deps.store && selected.length) {
