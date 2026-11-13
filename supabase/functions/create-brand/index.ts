@@ -42,6 +42,7 @@ Deno.serve(async (req) => {
     display_name: name,
     role: 'user',
     onboarding_completed_at: new Date().toISOString(),
+    must_change_password: true,
   };
   const { data: updated, error: updateError } = await service
     .from('users')
@@ -76,5 +77,5 @@ Deno.serve(async (req) => {
     return json({ error: brandError?.message ?? 'Could not create the brand.' }, 400);
   }
 
-  return json({ brand, ownerEmail: email, temporaryPassword: password });
+  return json({ brand, ownerEmail: email });
 });

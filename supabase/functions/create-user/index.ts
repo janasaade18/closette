@@ -42,6 +42,7 @@ Deno.serve(async (req) => {
     role: 'user',
     onboarding_completed_at: new Date().toISOString(),
     disabled_at: null,
+    must_change_password: true,
   };
   const { data: updated, error: updateError } = await service
     .from('users')
@@ -66,5 +67,5 @@ Deno.serve(async (req) => {
     user = inserted.data;
   }
 
-  return json({ user, temporaryPassword: password });
+  return json({ user });
 });

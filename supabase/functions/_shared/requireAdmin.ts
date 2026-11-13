@@ -53,3 +53,30 @@ export async function requireAdmin(req: Request): Promise<
 
   return { userId: data.user.id, service };
 }
+
+export async function requireUser(req: Request): Promise<
+  | { error: Response }
+  | { userId: string; email: string; service: SupabaseClient; anon: SupabaseClient }
+> {
+  const url = Deno.env.get('SUPABASE_URL') ?? '';
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  const header = req.headers.get('Authorization') ?? '';
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  if (!token || !url || !anonKey || !serviceKey) {
+    return { error: json({ error: 'Sign in first.' }, 401) };
+  }
+
+  const anon = createClient(url, anonKey);
+  const { data, error } = await anon.auth.getUser(token);
+  if (error || !data.user?.email) {
+    return { error: json({ error: 'Sign in first.' }, 401) };
+  }
+
+  return {
+    userId: data.user.id,
+    email: data.user.email,
+    service: createClient(url, serviceKey),
+    anon,
+  };
+}
