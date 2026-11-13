@@ -3,12 +3,12 @@ import { describe, it } from "node:test";
 import { defaultConfig } from "../config.js";
 import { MemoryMuseStore } from "../feedback/store.js";
 import { recommend } from "../pipeline.js";
-import { SharedLinUCB } from "../personalization/linucb.js";
 import { piece, request } from "./helpers.js";
 
 function baselineConfig(overrides = {}) {
   const config = defaultConfig();
   config.rankingPolicy = "baseline";
+  config.personalization = "baseline";
   Object.assign(config, overrides);
   return config;
 }
@@ -72,7 +72,8 @@ describe("candidate generation and ranking", () => {
       config: baselineConfig(),
     });
     assert.equal(result.body.ranking.learned_model, false);
-    assert.equal(result.body.ranking.personalization, undefined);
+    assert.equal(result.body.ranking.personalization, "baseline");
+    assert.equal(result.body.ranking.personalization_applied, false);
     assert.equal(result.body.ranking.feedback_events, 0);
     assert.equal(result.body.ranking.feedback_applied, false);
     const text = result.body.recommendations.flatMap((outfit) => outfit.reasons).join(" ");
@@ -362,10 +363,13 @@ describe("candidate generation and ranking", () => {
     }
   });
 
-  it("refuses to rank with LinUCB", () => {
-    const result = recommend(request(basic()), { linucb: new SharedLinUCB() });
-    assert.equal(result.statusCode, 400);
-    assert.equal(result.body.error, "personalization_not_available");
+  it("allows LinUCB personalization mode without requiring a prebuilt model", () => {
+    const config = defaultConfig();
+    config.personalization = "linucb";
+    const result = recommend(request(basic()), { config, store: new MemoryMuseStore() });
+    assert.equal(result.statusCode, 200);
+    assert.equal(result.body.ranking.personalization, "linucb");
+    assert.equal(result.body.ranking.personalization_applied, false);
   });
 
   it("caps a large wardrobe deterministically", () => {

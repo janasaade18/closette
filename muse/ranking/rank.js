@@ -1,6 +1,7 @@
 import { COLOR_FAMILIES, NEUTRAL_COLORS, SPECIFIC_DISLIKE_REASONS } from "../schemas/constants.js";
 import { formalityAffinity } from "./affinity.js";
 import { layerContextActive, suggestsCoolLayer } from "../candidate_generation/layers.js";
+import { personalizeScore } from "../personalization/fit.js";
 import { average, clamp01, round4 } from "../util.js";
 import { buildLearnedVector, scoreLearnedVector } from "./learned.js";
 
@@ -121,8 +122,8 @@ function feedbackSignal(outfit, events, config) {
     evidence = true;
     const specific = event.reason && SPECIFIC_DISLIKE_REASONS.has(event.reason.code);
     let delta = -0.15;
-    if (event.action === "like" || event.action === "save") {
-      delta = 1;
+    if (event.action === "like" || event.action === "save" || event.action === "purchase") {
+      delta = event.action === "purchase" ? 1.6 : 1;
       positive += 1;
     } else if (event.action === "worn") {
       delta = 1.5;
@@ -174,7 +175,7 @@ function reasonsFor(features, feedback, context, config) {
     else add("context_layer", "Adds a tailored layer for the occasion");
   }
   if (feedback.positive && feedback.value != null && feedback.value >= threshold && config.feedbackAdjustmentWeight > 0) {
-    add("feedback", "Agrees with outfits you have liked, saved, or worn");
+    add("feedback", "Agrees with outfits you have liked, saved, worn, or purchased");
   }
   if (!reasons.length) {
     add("wardrobe", "Built from pieces in your wardrobe that passed the outfit rules");
@@ -182,7 +183,7 @@ function reasonsFor(features, feedback, context, config) {
   return { reasons, reason_codes: codes };
 }
 
-export function scoreOutfit(outfit, context, profile, events, config, learnedModel = null) {
+export function scoreOutfit(outfit, context, profile, events, config, learnedModel = null, userModel = null) {
   const features = contentFeatures(outfit, context, profile, config);
   const feedback = feedbackSignal(outfit, events, config);
   let weightSum = 0;
@@ -195,7 +196,9 @@ export function scoreOutfit(outfit, context, profile, events, config, learnedMod
     signalsUsed.push(name);
   }
   let baselineScore = weightSum === 0 ? config.uninformedScore : valueSum / weightSum;
-  if (feedback.value != null && config.feedbackAdjustmentWeight > 0) {
+  const linucbReady = Boolean(userModel?.ready && config.personalization === "linucb");
+  // Heuristic affinity stays on when LinUCB is off or not ready yet.
+  if (!linucbReady && feedback.value != null && config.feedbackAdjustmentWeight > 0) {
     baselineScore += config.feedbackAdjustmentWeight * (feedback.value - 0.5);
     signalsUsed.push("feedback_affinity");
   }
@@ -212,6 +215,19 @@ export function scoreOutfit(outfit, context, profile, events, config, learnedMod
     learnedApplied = true;
   }
 
+  let personalizationApplied = false;
+  if (linucbReady) {
+    const personalized = personalizeScore(score, features, userModel, config);
+    score = round4(clamp01(personalized.score));
+    if (personalized.applied) {
+      personalizationApplied = true;
+      signalsUsed.push("linucb_personalization");
+      rankingMethod = learnedApplied
+        ? "learned_mlp_plus_linucb"
+        : "baseline_plus_linucb";
+    }
+  }
+
   const explanation = reasonsFor(features, feedback, context, config);
   if (learnedApplied) {
     explanation.reasons = [
@@ -222,6 +238,15 @@ export function scoreOutfit(outfit, context, profile, events, config, learnedMod
       explanation.reason_codes = ["learned_ranker", ...explanation.reason_codes].slice(0, 4);
     }
   }
+  if (personalizationApplied) {
+    explanation.reasons = [
+      "Personalized from your likes, saves, wears, dismissals, and purchases",
+      ...explanation.reasons,
+    ].slice(0, 3);
+    if (!explanation.reason_codes.includes("linucb")) {
+      explanation.reason_codes = ["linucb", ...explanation.reason_codes].slice(0, 4);
+    }
+  }
 
   return {
     ...outfit,
@@ -229,17 +254,18 @@ export function scoreOutfit(outfit, context, profile, events, config, learnedMod
     baseline_score: baselineScore,
     features: { ...features, feedback_affinity: feedback.value },
     signals_used: signalsUsed,
-    feedback_applied: feedback.value != null,
+    feedback_applied: feedback.value != null || personalizationApplied,
     learned_applied: learnedApplied,
+    personalization_applied: personalizationApplied,
     ranking_method: rankingMethod,
     reasons: explanation.reasons,
     reason_codes: explanation.reason_codes,
   };
 }
 
-export function rankOutfits(candidates, context, profile, events, config, learnedModel = null) {
+export function rankOutfits(candidates, context, profile, events, config, learnedModel = null, userModel = null) {
   const ranked = candidates.map((candidate) =>
-    scoreOutfit(candidate, context, profile, events, config, learnedModel),
+    scoreOutfit(candidate, context, profile, events, config, learnedModel, userModel),
   );
   ranked.sort((a, b) => b.score - a.score || a.outfitId.localeCompare(b.outfitId));
   return ranked;

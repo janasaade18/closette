@@ -10,7 +10,11 @@
   "cold_temp_c": 18,
   "cool_seasons": ["fall", "winter"],
   "feedback_min_events": 3,
-  "personalization": "baseline",
+  "personalization": "linucb",
+  "personalization_blend": 0.28,
+  "personalization_min_events": 3,
+  "linucb_alpha": 0.8,
+  "linucb_explore": false,
   "ranking_policy": "learned",
   "learned_model_path": null,
   "diversity_max_shared_core": 2

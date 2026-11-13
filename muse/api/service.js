@@ -16,8 +16,9 @@ export function contractBody() {
     model_version: MODEL_VERSION,
     recommend: "POST /v1/outfits/recommend",
     feedback: "POST /v1/outfits/feedback",
-    score_semantics: "weighted_average_of_active_features_not_a_probability",
-    personalization: "baseline",
-    learned_model: false,
+    score_semantics: "mlp_preference_score_in_0_1_with_optional_linucb",
+    personalization: "linucb",
+    learned_model: true,
+    feedback_actions: ["like", "save", "dislike", "dismiss", "worn", "purchase"],
   };
 }

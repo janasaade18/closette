@@ -21,6 +21,6 @@
     "wardrobe_item_ids": { "type": "array", "items": { "type": "string", "minLength": 1 } },
     "profile": { "$ref": "profile.schema.json" },
     "preferences_override": { "$ref": "profile.schema.json" },
-    "personalization": { "const": "baseline" }
+    "personalization": { "enum": ["baseline", "linucb"] }
   }
 }

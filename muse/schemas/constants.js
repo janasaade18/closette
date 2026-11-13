@@ -86,7 +86,8 @@ export const SEASONS = ["spring", "summer", "fall", "winter"];
 
 export const KNOWN_OCCASIONS = ["casual", "smart-casual", "work", "formal"];
 
-export const FEEDBACK_ACTIONS = ["like", "save", "dislike", "dismiss", "worn"];
+export const FEEDBACK_ACTIONS = ["like", "save", "dislike", "dismiss", "worn", "purchase"];
+export const FEEDBACK_SOURCES = ["wardrobe", "marketplace"];
 
 /** A reason code that names what was wrong. "other" stays weak. */
 export const SPECIFIC_DISLIKE_REASONS = new Set(["color", "formality", "weather", "style", "comfort"]);

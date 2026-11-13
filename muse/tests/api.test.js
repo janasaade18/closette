@@ -36,7 +36,15 @@ describe("HTTP API", () => {
     const missing = recommend({ user_id: "user-1", wardrobe_item_ids: ["item-001"] });
     assert.equal(missing.statusCode, 422);
     assert.equal(missing.body.error, "wardrobe_unavailable");
-    assert.equal(recommend({ user_id: "user-1", personalization: "linucb", wardrobe: demo }).body.error, "personalization_not_available");
+    assert.equal(recommend({ user_id: "user-1", personalization: "linucb", wardrobe: demo }).statusCode, 200);
+    assert.equal(
+      recommend({ user_id: "user-1", personalization: "thompson", wardrobe: demo }).body.error,
+      "personalization_not_available",
+    );
+    assert.ok(
+      recommend({ user_id: "user-1", personalization: "linucb", wardrobe: demo }).body.ranking.personalization ===
+        "linucb",
+    );
   });
 
   it("resolves wardrobe ids from a catalog", () => {

@@ -120,6 +120,9 @@ export function recordFeedback(body, deps) {
     context: recommendation.context,
     action: value.action,
     reason: value.reason,
+    source: value.source ?? "wardrobe",
+    product_ids: value.productIds,
+    features: outfit.features ?? null,
     timestamp: value.timestamp ?? (deps.now ? deps.now() : new Date().toISOString()),
     model_version: recommendation.model_version,
   };

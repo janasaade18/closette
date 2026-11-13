@@ -1,9 +1,10 @@
 /**
  * Shared linear LinUCB.
  *
- * One parameter vector is shared across outfits. A candidate is an arm only
- * for the current request, described by the same feature vector the baseline
- * ranker already computes. This module is not called by recommend().
+ * One parameter vector is shared across outfits for a single user. A candidate
+ * is an arm only for the current request, described by the seven baseline
+ * content features. Phase 2 fits one instance per user from feedback and blends
+ * it with the learned (or baseline) ranker in ranking/rank.js.
  */
 
 function zeros(n) {

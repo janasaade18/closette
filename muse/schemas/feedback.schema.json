@@ -8,7 +8,7 @@
     "recommendation_id": { "type": "string", "minLength": 1 },
     "outfit_id": { "type": "string", "minLength": 1 },
     "user_id": { "type": "string" },
-    "action": { "enum": ["like", "save", "dislike", "dismiss", "worn"] },
+    "action": { "enum": ["like", "save", "dislike", "dismiss", "worn", "purchase"] },
     "timestamp": { "type": "string", "format": "date-time" },
     "reason": {
       "type": "object",
@@ -16,6 +16,11 @@
         "code": { "type": "string" },
         "note": { "type": "string" }
       }
+    },
+    "source": { "enum": ["wardrobe", "marketplace"] },
+    "product_ids": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
     }
   }
 }

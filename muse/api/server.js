@@ -60,7 +60,7 @@ export function createServer(options = {}) {
       if (req.method === "GET" && url.pathname === "/health") {
         send(res, {
           statusCode: 200,
-          body: { ok: true, api_version: API_VERSION, model_version: MODEL_VERSION, personalization: "baseline" },
+          body: { ok: true, api_version: API_VERSION, model_version: MODEL_VERSION, personalization: "linucb" },
         });
         return;
       }

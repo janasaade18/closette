@@ -45,7 +45,7 @@ With `ranking_policy: "baseline"`, `score` is a weighted average of the signals 
 
 Hard rules are listed in `compatibility_rules/RULES.md` and configured in `compatibility_rules/config.json`. They do not encode color clashes or style taste.
 
-`ranking.learned_model` is true when the MLP is active. Feedback can still nudge the baseline path after three stored events. A dismissal without a specific reason is a weak signal. The LinUCB module in `personalization/` is tested and is not on the request path.
+`ranking.learned_model` is true when the MLP is active. With enough feedback, Phase 2 fits per-user LinUCB (`personalization: "linucb"`) and blends it with the MLP. Feedback actions include `purchase` for future marketplace events. A dismissal without a specific reason is a weak signal. Set `personalization: "baseline"` to turn LinUCB off.
 
 ## Nest integration
 

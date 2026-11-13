@@ -20,8 +20,8 @@ export const scenarios = [
       const problems = [];
       if (body.status !== "ok") problems.push(`status ${body.status}`);
       if (body.ranking.feedback_events !== 0) problems.push("expected no feedback");
-      if (body.ranking.learned_model !== false) problems.push("claimed a learned model");
-      if (/liked, saved, or worn|learned/i.test(textOf(body))) problems.push("cited learning");
+      if (body.ranking.personalization_applied) problems.push("applied personalization without history");
+      if (/liked, saved, or worn/i.test(textOf(body))) problems.push("cited learning");
       return problems;
     },
   },

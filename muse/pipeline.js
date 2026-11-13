@@ -6,6 +6,7 @@ import { partitionItems, outfitViolations } from "./compatibility_rules/rules.js
 import { generateCandidates } from "./candidate_generation/generate.js";
 import { rankOutfits, selectDiverse } from "./ranking/rank.js";
 import { defaultLearnedWeightsPath, loadLearnedModel } from "./ranking/learned.js";
+import { fitUserLinUCB } from "./personalization/fit.js";
 import { recommendationIdFor } from "./ids.js";
 import { SCORE_NOTE, SCORE_SEMANTICS, apiError } from "./util.js";
 
@@ -136,25 +137,21 @@ function resolveRawItems(value, catalog) {
 }
 
 export function recommend(request, deps = {}) {
-  const config = deps.config ?? defaultConfig();
-  if (config.personalization !== "baseline") {
+  let config = deps.config ?? defaultConfig();
+  if (config.personalization !== "baseline" && config.personalization !== "linucb") {
     return apiError(
       400,
       "personalization_not_available",
-      "LinUCB stays off the request path until logged feedback can be evaluated.",
-    );
-  }
-  if (deps.linucb) {
-    return apiError(
-      400,
-      "personalization_not_available",
-      "A LinUCB model was supplied, and Muse will not use it to rank outfits.",
+      `Unsupported personalization mode: ${config.personalization}`,
     );
   }
 
   const parsed = validateRecommendRequest(request, config);
   if (parsed.error) return parsed.error;
   const value = parsed.value;
+  if (value.personalization) {
+    config = { ...config, personalization: value.personalization };
+  }
   const resolved = resolveRawItems(value, deps.catalog);
   if (resolved.error) return resolved.error;
 
@@ -206,12 +203,30 @@ export function recommend(request, deps = {}) {
     }
   }
   const useLearned = Boolean(learnedModel && config.rankingPolicy === "learned");
+  const userModel =
+    config.personalization === "linucb"
+      ? deps.userModel ?? fitUserLinUCB(history, deps.store, config)
+      : { model: null, updates: 0, ready: false };
+  const usePersonalization = Boolean(userModel.ready);
   const effectiveModelVersion = useLearned
-    ? learnedModel.model_version ?? "muse-ranker-v1"
-    : config.modelVersion;
+    ? usePersonalization
+      ? "muse-ranker-v1+linucb"
+      : learnedModel.model_version ?? "muse-ranker-v1"
+    : usePersonalization
+      ? `${config.modelVersion}+linucb`
+      : config.modelVersion;
   const rankingMeta = {
-    method: useLearned ? "learned_mlp_ranker" : "baseline_weighted_features",
+    method: useLearned
+      ? usePersonalization
+        ? "learned_mlp_plus_linucb"
+        : "learned_mlp_ranker"
+      : usePersonalization
+        ? "baseline_plus_linucb"
+        : "baseline_weighted_features",
     learned_model: useLearned,
+    personalization: config.personalization,
+    personalization_applied: usePersonalization,
+    linucb_updates: userModel.updates,
     feedback_events: history.length,
     feedback_min_events: config.feedbackMinEvents,
     feedback_applied: false,
@@ -235,9 +250,10 @@ export function recommend(request, deps = {}) {
   const { eligible, excluded } = partitionItems(normalized, value.context, profile, config);
   const generated = generateCandidates(eligible, value.context, profile, config);
   const candidates = generated.filter((outfit) => outfitViolations(outfit).length === 0);
-  const ranked = rankOutfits(candidates, value.context, profile, history, config, learnedModel);
+  const ranked = rankOutfits(candidates, value.context, profile, history, config, learnedModel, userModel);
   const selected = selectDiverse(ranked, value.limit, config);
   rankingMeta.feedback_applied = selected.some((outfit) => outfit.feedback_applied);
+  rankingMeta.personalization_applied = selected.some((outfit) => outfit.personalization_applied);
 
   const shownIds = selected.map((outfit) => outfit.outfitId);
   const recommendationId = recommendationIdFor(value.userId, value.context, shownIds);

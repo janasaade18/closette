@@ -1,4 +1,4 @@
-import { SEASONS, normSeason, normToken } from "./constants.js";
+import { FEEDBACK_ACTIONS, FEEDBACK_SOURCES, SEASONS, normSeason, normToken } from "./constants.js";
 import { apiError } from "../util.js";
 
 const REQUEST_FIELDS = new Set([
@@ -116,12 +116,12 @@ export function validateRecommendRequest(body, config) {
   }
   const errors = {};
   const unknown = Object.keys(body).filter((key) => !REQUEST_FIELDS.has(key));
-  if (body.personalization != null && body.personalization !== "baseline") {
+  if (body.personalization != null && body.personalization !== "baseline" && body.personalization !== "linucb") {
     return {
       error: apiError(
         400,
         "personalization_not_available",
-        "The request path uses the baseline ranker. LinUCB is not enabled.",
+        "personalization must be baseline or linucb.",
       ),
     };
   }
@@ -191,6 +191,7 @@ export function validateRecommendRequest(body, config) {
     value: {
       userId: body.user_id.trim(),
       limit,
+      personalization: body.personalization ?? null,
       context: {
         occasion: body.occasion ? normToken(body.occasion) : null,
         season: body.season ? normSeason(body.season) : null,
@@ -216,15 +217,28 @@ export function validateFeedbackRequest(body) {
   if (typeof body.outfit_id !== "string" || !body.outfit_id.trim()) {
     errors.outfit_id = "must be a non-empty string";
   }
-  const actions = ["like", "save", "dislike", "dismiss", "worn"];
-  if (!actions.includes(body.action)) {
-    errors.action = `must be one of ${actions.join(", ")}`;
+  if (!FEEDBACK_ACTIONS.includes(body.action)) {
+    errors.action = `must be one of ${FEEDBACK_ACTIONS.join(", ")}`;
   }
   if (body.user_id != null && (typeof body.user_id !== "string" || !body.user_id.trim())) {
     errors.user_id = "must be a non-empty string";
   }
   if (body.timestamp != null && (typeof body.timestamp !== "string" || Number.isNaN(Date.parse(body.timestamp)))) {
     errors.timestamp = "must be an ISO-8601 timestamp";
+  }
+  if (body.source != null && !FEEDBACK_SOURCES.includes(body.source)) {
+    errors.source = "must be wardrobe or marketplace";
+  }
+  if (body.product_ids != null) {
+    if (!Array.isArray(body.product_ids)) {
+      errors.product_ids = "must be an array of strings";
+    } else {
+      body.product_ids.forEach((id, index) => {
+        if (typeof id !== "string" || !id.trim()) {
+          errors[`product_ids[${index}]`] = "must be a non-empty string";
+        }
+      });
+    }
   }
   if (body.reason != null) {
     if (!isObject(body.reason)) {
@@ -244,6 +258,10 @@ export function validateFeedbackRequest(body) {
       action: body.action,
       userId: body.user_id ? body.user_id.trim() : null,
       timestamp: body.timestamp ?? null,
+      source: body.source ?? "wardrobe",
+      productIds: Array.isArray(body.product_ids)
+        ? body.product_ids.map((id) => id.trim()).filter(Boolean)
+        : null,
       reason: body.reason
         ? {
             code: body.reason.code ? normToken(body.reason.code) : null,

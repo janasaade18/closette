@@ -6,6 +6,14 @@ When `ranking_policy` is `learned` in `config/runtime.json`, Muse scores outfits
 
 Candidate generation and hard rules are unchanged. `ranking.learned_model` is true and `model_version` becomes `muse-ranker-v1`. `score_semantics` is `mlp_preference_score_in_0_1`. Set `ranking_policy` to `baseline` to restore the hand-weighted path below.
 
+## Per-user LinUCB (Phase 2)
+
+When `personalization` is `linucb` and the user has enough feature-backed feedback events, Muse fits a shared LinUCB on the seven content signals and blends it with the MLP (or baseline) score:
+
+`final = (1 - blend) * base + blend * sigmoid(θ · x)`
+
+Defaults: `personalization_blend = 0.28`, `personalization_min_events = 3`. Feedback actions include `purchase` for future marketplace checkouts. Cold users keep the Phase 1 score.
+
 ## Baseline features
 
 Weights live in `ranking/weights.json`. They are renormalized over the features that have evidence. A feature with no evidence is left out. It is not replaced with a neutral guess, except when every feature is missing: the score is then `uninformed_score` (0.5).
