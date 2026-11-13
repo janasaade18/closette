@@ -24,12 +24,19 @@ export function normalizeMarketplaceProduct(raw) {
   return {
     ...base,
     source: "marketplace",
+    name: typeof raw.name === "string" ? raw.name.trim() : null,
     brand: typeof raw.brand === "string" ? raw.brand.trim() : null,
     price,
     currency: typeof raw.currency === "string" ? raw.currency.trim().toUpperCase() : "USD",
     sizes: readSizes(raw),
     inStock,
     productId: base.id,
+    imageUrl:
+      typeof raw.image_url === "string"
+        ? raw.image_url.trim()
+        : typeof raw.imageUrl === "string"
+          ? raw.imageUrl.trim()
+          : null,
   };
 }
 

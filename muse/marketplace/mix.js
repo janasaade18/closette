@@ -110,10 +110,12 @@ export function publicMarketplaceItems(outfit) {
       role: item.role,
       category: item.category,
       subcategory: item.subcategory,
+      name: item.name ?? null,
       price: item.price,
       currency: item.currency ?? "USD",
       brand: item.brand,
       sizes: item.sizes ?? [],
       colors: item.colors,
+      image_url: item.imageUrl ?? null,
     }));
 }
