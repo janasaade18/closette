@@ -13,6 +13,7 @@ It does **not** replace Muse’s candidate generation or hard rules. Those stay 
 | `train_ranker.py` | Train an MLP ranker and write `weights/ranker-v1.json` |
 | `evaluate.py` | Offline metrics vs the hand-weighted baseline |
 | `evaluate_personalization.py` | Phase 2: MLP vs MLP+LinUCB on simulated user feedback |
+| `evaluate_marketplace.py` | Phase 3: marketplace constraints + complement lift (no RAG/Qwen) |
 | `requirements.txt` | NumPy + scikit-learn only |
 
 ## Quick start
@@ -24,6 +25,7 @@ python generate_synthetic.py
 python train_ranker.py
 python evaluate.py
 python evaluate_personalization.py
+python evaluate_marketplace.py
 ```
 
-Then start Muse as usual. With `ranking_policy: "learned"` and `personalization: "linucb"` in `muse/config/runtime.json`, recommendations use `muse-ranker-v1` and personalize after enough feedback.
+Then start Muse as usual. With `ranking_policy: "learned"` and `personalization: "linucb"`, recommendations use `muse-ranker-v1` and personalize after enough feedback. Send `marketplace.enabled: true` (or inline `marketplace_products`) for Phase 3 mixed catalog suggestions.

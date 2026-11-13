@@ -2,8 +2,9 @@
 
 **Author:** Serge (Closette / Muse)  
 **Branch:** `feature/muse-learned-ranker`  
-**Models:** `muse-ranker-v1` (Phase 1), `muse-ranker-v1+linucb` (Phase 2)  
-**Scope:** Closette-owned outfit ranking and per-user personalization, without replacing teammates’ candidate generation or hard rules.
+**Models:** `muse-ranker-v1` (Phase 1), `muse-ranker-v1+linucb` (Phase 2), `muse-marketplace-v1` retrieval (Phase 3)  
+**Scope:** Closette-owned outfit ranking, per-user personalization, and marketplace complement recommendations—without replacing teammates’ candidate generation or hard rules.  
+**Not used:** RAG, Qwen, or QLoRA. Phase 3 is structured retrieval + constraints.
 
 ---
 
@@ -11,12 +12,13 @@
 
 Muse already recommended outfits from a user’s wardrobe, but the ranking step was a hand-tuned weighted average of a few content signals. That is solid engineering, and it was the right first ship. It is not, however, a model Closette owns in the machine-learning sense—and it does not learn from how a specific person reacts over time.
 
-This work lands in two phases on one branch:
+This work lands in three phases on one branch:
 
 1. **Phase 1 — Learned outfit ranker.** Train and serve a Closette-owned MLP that re-scores legal outfits.
 2. **Phase 2 — Personalized recommendations.** Fit per-user LinUCB from likes, saves, dismissals, dislikes, wears, and purchases, then blend it with the Phase 1 score.
+3. **Phase 3 — Marketplace intelligence.** Retrieve catalog products that complement a wardrobe, build mixed outfits, enforce budget/size/availability/weather, and keep learning from marketplace purchases.
 
-I deliberately did **not** wrap an external chat API and call it “AI.” The contribution is inspectable models, exported weights, Node inference that matches the training contract, and offline numbers that show lift.
+I deliberately did **not** wrap an external chat API, RAG pipeline, or Qwen/QLoRA adapter and call it “AI.” The contribution is inspectable models, structured retrieval, exported weights, Node inference, and offline numbers that show lift.
 
 ---
 
@@ -153,13 +155,58 @@ Near-tie pairs (where the MLP scores are within 0.08) are where personalization 
 
 ---
 
+## Phase 3 — Marketplace intelligence
+
+### What shipped
+
+Muse can take a wardrobe plus a marketplace catalog (inline `marketplace_products` or `marketplace/fixtures/demo_catalog.json`) and:
+
+1. **Filter** products by budget, size, in-stock/availability, and weather/season.
+2. **Retrieve complements** with a deterministic scorer (slot need, color harmony, occasion, price fit, weather)—not embedding RAG.
+3. **Build mixed outfits** that keep wardrobe pieces and add at most one marketplace item per outfit (configurable).
+4. **Rank** mixed and wardrobe-only candidates with Phase 1 MLP + Phase 2 LinUCB.
+5. **Learn** from marketplace interactions via existing `purchase` / `source: "marketplace"` / `product_ids` feedback, plus a `marketplace_affinity` nudge.
+
+Enable per request:
+
+```json
+"marketplace": {
+  "enabled": true,
+  "budget_max": 120,
+  "sizes": ["M", "42"],
+  "include_mixed": true
+}
+```
+
+Runtime default keeps `marketplace_enabled: false` so teammates’ wardrobe-only flows stay unchanged until Nest opts in.
+
+### Phase 3 evaluation
+
+| Metric | Result |
+| --- | --- |
+| Constraint accuracy | **1.0000** |
+| Mean top-1 complement score | **0.8085** |
+| Mean random product score | **0.7680** |
+| Complement lift vs random | **+0.0404** |
+| Mixed slot-fill rate | **0.6645** |
+
+Artifact: `ml/muse/reports/phase3_eval.json`.
+
+### RAG / Qwen / QLoRA?
+
+**No.** Phase 3 does not use RAG, Qwen, or QLoRA. Marketplace intelligence is structured catalog retrieval and constraint filtering inside Muse. Those LLM/RAG pieces remain future options for chat or richer language understanding, not for this ranking path.
+
+---
+
 ## How this improves Muse for users
 
 **Phase 1** replaces a fixed scoring recipe with a trained preference model Closette owns end to end—better ordering of legal outfits from day one.
 
-**Phase 2** makes that ordering personal. After a few likes, saves, wears, dismissals, dislikes, or purchases, Muse tilts toward that person’s taste while keeping the global prior as ballast. Marketplace purchases can feed the same loop when Closette wires checkout.
+**Phase 2** makes that ordering personal. After a few likes, saves, wears, dismissals, dislikes, or purchases, Muse tilts toward that person’s taste while keeping the global prior as ballast.
 
-Together: legal outfits from the team’s rules engine, ranked by a Closette-owned model, adapted to the individual without calling a third-party stylist API.
+**Phase 3** lets Muse suggest real or synthetic catalog pieces that complete or upgrade an outfit—within budget and size—while still respecting wardrobe rules and learning from marketplace purchases.
+
+Together: legal outfits from the team’s rules engine, ranked by a Closette-owned model, adapted to the individual, and able to recommend complementary products without a third-party stylist API.
 
 ---
 
@@ -172,12 +219,13 @@ python generate_synthetic.py
 python train_ranker.py
 python evaluate.py
 python evaluate_personalization.py
+python evaluate_marketplace.py
 
 cd ../../muse
 node --test
 ```
 
-Confirm `muse/config/runtime.json` has `"ranking_policy": "learned"` and `"personalization": "linucb"`.
+Confirm `ranking_policy: "learned"` and `personalization: "linucb"`. Send `marketplace.enabled: true` (or inline products) to exercise Phase 3.
 
 ---
 
@@ -195,6 +243,12 @@ Confirm `muse/config/runtime.json` has `"ranking_policy": "learned"` and `"perso
 - [x] Blend into the learned ranker with cold-start safeguards  
 - [x] Marketplace-ready `purchase` / `source` / `product_ids` on feedback  
 - [x] Offline evaluation vs Phase 1 (`phase2_eval.json`)  
+
+### Phase 3
+- [x] Marketplace catalog + constraint filters (budget/size/availability/weather)  
+- [x] Complement retrieval + mixed wardrobe/marketplace outfits  
+- [x] Learning from marketplace interactions (`marketplace_affinity` + LinUCB snapshots)  
+- [x] Offline evaluation (`phase3_eval.json`)  
 - [x] Updated humanized contribution report  
 
-One branch, commits per phase, models we can defend in review, and Muse still looking like the system the team already knows—only smarter at ranking, and now personal.
+One branch, commits per phase, models we can defend in review—and explicitly no RAG/Qwen/QLoRA on this path.

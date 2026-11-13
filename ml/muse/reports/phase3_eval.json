@@ -1,0 +1,31 @@
+{
+  "model_version": "muse-marketplace-v1",
+  "phase": 3,
+  "n_catalog_products": 12,
+  "n_trials": 200,
+  "constraint_accuracy": 1.0,
+  "mean_top1_complement_score": 0.8085,
+  "mean_random_product_score": 0.768,
+  "complement_lift_vs_random": 0.0404,
+  "mixed_slot_fill_rate": 0.6645,
+  "budget_reject_events": 598,
+  "stock_reject_events": 200,
+  "uses_rag": false,
+  "uses_qwen_qlora": false,
+  "retrieval_type": "structured_complement_scoring",
+  "constraints": [
+    "budget",
+    "size",
+    "availability",
+    "weather"
+  ],
+  "learning": [
+    "Phase 2 LinUCB on mixed-outfit feature snapshots",
+    "marketplace_affinity from purchase/like/save with source=marketplace"
+  ],
+  "notes": [
+    "No RAG and no Qwen/QLoRA in Phase 3.",
+    "Marketplace intelligence is deterministic retrieval + constraint filters + mixed candidate generation.",
+    "Catalog fixture: muse/marketplace/fixtures/demo_catalog.json"
+  ]
+}
