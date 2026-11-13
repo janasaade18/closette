@@ -47,7 +47,9 @@ export function buildProfile(input) {
   const base = input.profile ?? {};
   const over = input.preferencesOverride ?? {};
   const pick = (key) => (over[key] != null ? over[key] : base[key]);
+  const genderRaw = pick("gender");
   const profile = {
+    gender: typeof genderRaw === "string" && genderRaw.trim() ? genderRaw.trim().toLowerCase() : null,
     preferredStyles: list(pick("preferred_styles")),
     favoriteColors: list(pick("favorite_colors")),
     dislikedColors: list(pick("disliked_colors")),
@@ -316,6 +318,7 @@ export function recommend(request, deps = {}) {
       sizes: marketplaceOpts?.sizes ?? [],
       categories: marketplaceOpts?.categories ?? [],
       requireInStock: true,
+      gender: profile.gender,
     };
     const filtered = filterMarketplaceProducts(rawProducts, constraints, value.context, config);
     marketplaceRejected = filtered.rejected;
@@ -391,13 +394,20 @@ export function recommend(request, deps = {}) {
         const outer = outfit.items?.find((item) => item.role === "outerwear");
         return outer && (outer.subcategory === "coat" || outer.subcategory === "trench-coat");
       });
-    if ((weakWeather.length === selected.length && (cold || hot || wet)) || missingOuter || heavyOuter) {
+    // Prefer showing a marketplace fill over nagging the user to buy a jacket.
+    if (missingOuter && !mixedSelected) {
       status = "weather_compromise";
-      message = missingOuter || (cold && !hot)
-        ? wet
-          ? `Not recommended as-is — it is wet${typeof tempC === "number" ? ` (${tempC}°C)` : ""}. Add a jacket or raincoat; a short-sleeve tee alone is a poor fit.`
-          : `Not recommended as-is — it is cool (${tempC}°C). These are the warmest looks your closet can make; add a jacket or warmer layers.`
-        : `Not recommended as-is — it is hot (${tempC}°C). These looks are heavy for the weather; lighter pieces would be better.`;
+      message = wet || cold
+        ? `Best closet look for ${tempC}°C — open Market to fill a layer from partner brands.`
+        : `Best closet look for ${tempC}°C.`;
+      warnings.push({
+        code: "weather_compromise",
+        message,
+        temperature_c: tempC,
+      });
+    } else if (heavyOuter || (weakWeather.length === selected.length && hot)) {
+      status = "weather_compromise";
+      message = `Best available look for ${tempC}°C from what you own.`;
       warnings.push({
         code: "weather_compromise",
         message,
@@ -405,15 +415,15 @@ export function recommend(request, deps = {}) {
       });
     } else {
       message = mixedSelected
-        ? "Recommendations may mix wardrobe pieces with marketplace products that passed constraints."
+        ? "Outfit mixes your closet with marketplace pieces."
         : "Recommendations use garments from the supplied wardrobe.";
     }
   } else if (weatherBlocked) {
-    message = cold
-      ? `Not recommended — it is cold (${tempC}°C). Your closet only has pieces that do not fit this weather (tees, shorts, sandals, etc.). Add trousers, closed shoes, or a coat.`
+    message = cold || wet
+      ? `No full outfit fits ${tempC}°C from this closet alone. Check marketplace layers.`
       : hot
-        ? `Not recommended — it is hot (${tempC}°C). Your closet only has heavy / winter pieces for this weather. Add lighter tops and breathable pieces.`
-        : `Not recommended — nothing in this wardrobe fits ${tempC}°C.`;
+        ? `No full outfit fits ${tempC}°C from this closet alone. Check lighter marketplace pieces.`
+        : `No full outfit fits ${tempC}°C from this closet alone.`;
   } else {
     message = "Garments were found, and none formed an outfit that passed the rules.";
   }

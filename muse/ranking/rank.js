@@ -171,30 +171,9 @@ function reasonsFor(features, feedback, context, config) {
     add("color_harmony", "Uses colors that are easy to wear together");
   }
   if (weighted("weather_suitability")) add("weather", "Fits the available weather information");
-  if (
-    features.weather_suitability != null &&
-    config.weights.weather_suitability > 0 &&
-    features.weather_suitability < 0.45
-  ) {
-    const temp = context.weather?.temperature_c;
-    if (typeof temp === "number" && temp < (config.coldTempC ?? 18)) {
-      add("weather_warning", "Not ideal for this cold weather");
-    } else if (typeof temp === "number" && temp >= 26) {
-      add("weather_warning", "Not ideal for this hot weather");
-    } else {
-      add("weather_warning", "Not ideal for the current weather");
-    }
-  }
   if (weighted("context_layer")) {
-    if (suggestsCoolLayer(context, config)) add("context_layer", "Adds a layer for the cooler conditions");
+    if (suggestsCoolLayer(context, config)) add("context_layer", "Layered for cooler weather");
     else add("context_layer", "Adds a tailored layer for the occasion");
-  }
-  if (
-    suggestsCoolLayer(context, config) &&
-    features.context_layer != null &&
-    features.context_layer < 0.5
-  ) {
-    add("layer_gap", "Cold conditions — a coat or jacket is missing");
   }
   if (feedback.positive && feedback.value != null && feedback.value >= threshold && config.feedbackAdjustmentWeight > 0) {
     add("feedback", "Agrees with outfits you have liked, saved, worn, or purchased");
@@ -208,13 +187,26 @@ function reasonsFor(features, feedback, context, config) {
 function attachMarketplaceReason(explanation, outfit) {
   if (!(outfit.marketplace_ids ?? []).length) return explanation;
   explanation.reasons = [
-    "Includes a marketplace piece that complements your wardrobe",
-    ...explanation.reasons,
+    "Completed with a marketplace piece",
+    ...explanation.reasons.filter((reason) => !/marketplace|shop/i.test(reason)),
   ].slice(0, 3);
   if (!explanation.reason_codes.includes("marketplace")) {
     explanation.reason_codes = ["marketplace", ...explanation.reason_codes].slice(0, 4);
   }
   return explanation;
+}
+
+function formalitySpreadPenalty(outfit, context) {
+  const affinities = (outfit.items ?? [])
+    .map((item) => formalityAffinity(context.occasion, item.formality))
+    .filter((value) => typeof value === "number");
+  if (affinities.length < 2) return 0;
+  const min = Math.min(...affinities);
+  const max = Math.max(...affinities);
+  const spread = max - min;
+  if (spread >= 0.7) return 0.22;
+  if (spread >= 0.45) return 0.12;
+  return 0;
 }
 
 export function scoreOutfit(outfit, context, profile, events, config, learnedModel = null, userModel = null) {
@@ -273,12 +265,27 @@ export function scoreOutfit(outfit, context, profile, events, config, learnedMod
   if (suggestsCoolLayer(context, config) && outfit.roles?.outerwear) {
     score = round4(clamp01(score + 0.12));
     signalsUsed.push("cold_layer_boost");
+    const outer = outfit.items?.find((item) => item.role === "outerwear");
+    if (
+      context.weather?.condition === "rain" &&
+      outer &&
+      (outer.subcategory === "raincoat" || outer.subcategory === "jacket")
+    ) {
+      score = round4(clamp01(score + 0.08));
+      signalsUsed.push("rain_layer_boost");
+    }
   } else if (typeof temp === "number" && temp >= 26 && outfit.roles?.outerwear) {
     const outer = outfit.items?.find((item) => item.role === "outerwear");
     if (outer && (outer.subcategory === "coat" || outer.subcategory === "trench-coat")) {
       score = round4(clamp01(score - 0.15));
       signalsUsed.push("hot_layer_penalty");
     }
+  }
+
+  const formalityPenalty = formalitySpreadPenalty(outfit, context);
+  if (formalityPenalty > 0) {
+    score = round4(clamp01(score - formalityPenalty));
+    signalsUsed.push("formality_cohesion");
   }
 
   let explanation = reasonsFor(features, feedback, context, config);

@@ -21,6 +21,12 @@ export function normalizeMarketplaceProduct(raw) {
     raw.in_stock === false || availability === "sold_out" || availability === "unavailable"
       ? false
       : true;
+  const genderRaw =
+    typeof raw.gender === "string"
+      ? raw.gender.trim().toLowerCase()
+      : typeof raw.target_gender === "string"
+        ? raw.target_gender.trim().toLowerCase()
+        : "unisex";
   return {
     ...base,
     source: "marketplace",
@@ -31,6 +37,7 @@ export function normalizeMarketplaceProduct(raw) {
     sizes: readSizes(raw),
     inStock,
     productId: base.id,
+    gender: genderRaw || "unisex",
     imageUrl:
       typeof raw.image_url === "string"
         ? raw.image_url.trim()

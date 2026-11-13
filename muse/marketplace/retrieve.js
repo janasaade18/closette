@@ -62,6 +62,39 @@ function occasionFit(product, context) {
   return affinity == null ? 0.55 : affinity;
 }
 
+function wardrobeFormalityBias(items) {
+  const ranks = { athletic: 0, casual: 1, "smart-casual": 2, work: 3, formal: 4 };
+  const values = items.map((item) => ranks[item.formality]).filter((value) => value != null);
+  if (!values.length) return 1;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function formalityCohesion(product, wardrobeItems) {
+  const bias = wardrobeFormalityBias(wardrobeItems);
+  const ranks = { athletic: 0, casual: 1, "smart-casual": 2, work: 3, formal: 4 };
+  const productRank = ranks[product.formality];
+  if (productRank == null) return 0.7;
+  const gap = Math.abs(productRank - bias);
+  if (gap <= 1) return 1;
+  if (gap <= 1.5) return 0.55;
+  return 0.15;
+}
+
+function weatherLayerBoost(product, context) {
+  const condition = context?.weather?.condition;
+  const temp = context?.weather?.temperature_c;
+  const cool =
+    condition === "rain" ||
+    condition === "snow" ||
+    condition === "cold" ||
+    (typeof temp === "number" && temp <= 18);
+  if (!cool || product.role !== "outerwear") return 0.55;
+  if (product.subcategory === "raincoat" || product.subcategory === "jacket") return 1;
+  if (product.subcategory === "coat" || product.subcategory === "trench-coat") return 0.75;
+  if (product.subcategory === "blazer" && condition === "rain") return 0.25;
+  return 0.55;
+}
+
 export function complementScore(product, wardrobeItems, context, constraints = {}) {
   const roles = wardrobeRoles(wardrobeItems);
   const colors = wardrobeColors(wardrobeItems);
@@ -77,10 +110,19 @@ export function complementScore(product, wardrobeItems, context, constraints = {
     context.weather.temperature_c <= product.temperatureMax
       ? 1
       : 0.55;
-  const raw = 0.28 * slot + 0.24 * color + 0.2 * occasion + 0.16 * price + 0.12 * weather;
+  const cohesion = formalityCohesion(product, wardrobeItems);
+  const layer = weatherLayerBoost(product, context);
+  const raw =
+    0.22 * slot +
+    0.18 * color +
+    0.16 * occasion +
+    0.14 * cohesion +
+    0.12 * layer +
+    0.1 * price +
+    0.08 * weather;
   return {
     score: round4(clamp01(raw)),
-    parts: { slot, color, occasion, price, weather },
+    parts: { slot, color, occasion, cohesion, layer, price, weather },
   };
 }
 

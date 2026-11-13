@@ -1,12 +1,26 @@
 /**
- * Hard filters for marketplace products: budget, size, availability, weather.
+ * Hard filters for marketplace products: budget, size, availability, weather, gender.
  */
 import { suggestsCoolLayer } from "../candidate_generation/layers.js";
+
+function normalizeGender(value) {
+  if (!value || typeof value !== "string") return null;
+  const raw = value.trim().toLowerCase();
+  if (["male", "man", "men", "masculine", "m"].includes(raw)) return "male";
+  if (["female", "woman", "women", "feminine", "f"].includes(raw)) return "female";
+  if (["unisex", "all", "any", "nonbinary", "non-binary", "nb"].includes(raw)) return "unisex";
+  return raw;
+}
 
 export function productPassesConstraints(product, constraints, context, config) {
   if (!product) return { ok: false, reason: "missing_product" };
   if (constraints.requireInStock !== false && product.inStock === false) {
     return { ok: false, reason: "out_of_stock" };
+  }
+  const userGender = normalizeGender(constraints.gender ?? constraints.profileGender);
+  const productGender = normalizeGender(product.gender) ?? "unisex";
+  if (userGender && userGender !== "unisex" && productGender !== "unisex" && productGender !== userGender) {
+    return { ok: false, reason: "gender_mismatch" };
   }
   if (product.availability === "laundry" || product.availability === "unavailable") {
     return { ok: false, reason: "unavailable" };

@@ -27,6 +27,8 @@ const PROFILE_FIELDS = [
   "avoid_categories",
 ];
 
+const PROFILE_STRING_FIELDS = ["gender"];
+
 function isObject(value) {
   return value != null && typeof value === "object" && !Array.isArray(value);
 }
@@ -59,6 +61,15 @@ function readProfile(value, field, errors) {
     return undefined;
   }
   const profile = {};
+  for (const key of PROFILE_STRING_FIELDS) {
+    if (value[key] != null) {
+      if (typeof value[key] !== "string" || !value[key].trim()) {
+        errors[`${field}.${key}`] = "must be a non-empty string";
+      } else {
+        profile[key] = value[key].trim().toLowerCase();
+      }
+    }
+  }
   for (const key of PROFILE_FIELDS) {
     if (value[key] != null) {
       profile[key] = readStringArray(value[key], `${field}.${key}`, errors, {
