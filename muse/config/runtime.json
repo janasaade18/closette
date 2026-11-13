@@ -11,5 +11,7 @@
   "cool_seasons": ["fall", "winter"],
   "feedback_min_events": 3,
   "personalization": "baseline",
+  "ranking_policy": "learned",
+  "learned_model_path": null,
   "diversity_max_shared_core": 2
 }

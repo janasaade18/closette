@@ -54,8 +54,8 @@ describe("HTTP API", () => {
     assert.deepEqual(result.body.recommendations[0].items, ["item-001", "item-002", "item-003"]);
     assert.equal(result.body.recommendations[0].items.includes("item-004"), false);
     assert.ok(result.body.warnings.some((warning) => warning.code === "unknown_wardrobe_items"));
-    assert.equal(result.body.model_version, "muse-v1");
-    assert.equal(result.body.score_semantics, "weighted_average_of_active_features_not_a_probability");
+    assert.equal(result.body.model_version, "muse-ranker-v1");
+    assert.equal(result.body.score_semantics, "mlp_preference_score_in_0_1");
   });
 
   it("serves recommend and feedback over HTTP", async () => {

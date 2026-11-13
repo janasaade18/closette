@@ -5,6 +5,7 @@ import { API_VERSION, MODEL_VERSION, normToken } from "./schemas/constants.js";
 import { partitionItems, outfitViolations } from "./compatibility_rules/rules.js";
 import { generateCandidates } from "./candidate_generation/generate.js";
 import { rankOutfits, selectDiverse } from "./ranking/rank.js";
+import { defaultLearnedWeightsPath, loadLearnedModel } from "./ranking/learned.js";
 import { recommendationIdFor } from "./ids.js";
 import { SCORE_NOTE, SCORE_SEMANTICS, apiError } from "./util.js";
 
@@ -73,19 +74,24 @@ function publicOutfit(outfit, modelVersion) {
   };
 }
 
-function envelope(status, extra, modelVersion = MODEL_VERSION) {
+function envelope(status, extra, modelVersion = MODEL_VERSION, scoreMeta = null) {
   return {
     statusCode: 200,
     body: {
       api_version: API_VERSION,
       model_version: modelVersion,
       status,
-      score_semantics: SCORE_SEMANTICS,
-      score_note: SCORE_NOTE,
+      score_semantics: scoreMeta?.semantics ?? SCORE_SEMANTICS,
+      score_note: scoreMeta?.note ?? SCORE_NOTE,
       ...extra,
     },
   };
 }
+
+const LEARNED_SCORE_META = {
+  semantics: "mlp_preference_score_in_0_1",
+  note: "Scores run from 0 to 1. With ranking_policy=learned they come from Closette's Muse MLP ranker over the shared feature vector. Candidate generation and hard rules are unchanged.",
+};
 
 function resolveRawItems(value, catalog) {
   if (Array.isArray(value.wardrobe)) {
@@ -191,13 +197,27 @@ export function recommend(request, deps = {}) {
   }
 
   const history = deps.store ? deps.store.eventsForUser(value.userId) : [];
+  let learnedModel = deps.learnedModel ?? null;
+  if (!learnedModel && config.rankingPolicy === "learned") {
+    try {
+      learnedModel = loadLearnedModel(config.learnedModelPath ?? defaultLearnedWeightsPath());
+    } catch {
+      learnedModel = null;
+    }
+  }
+  const useLearned = Boolean(learnedModel && config.rankingPolicy === "learned");
+  const effectiveModelVersion = useLearned
+    ? learnedModel.model_version ?? "muse-ranker-v1"
+    : config.modelVersion;
   const rankingMeta = {
-    method: "baseline_weighted_features",
-    learned_model: false,
+    method: useLearned ? "learned_mlp_ranker" : "baseline_weighted_features",
+    learned_model: useLearned,
     feedback_events: history.length,
     feedback_min_events: config.feedbackMinEvents,
     feedback_applied: false,
   };
+
+  const scoreMeta = useLearned ? LEARNED_SCORE_META : null;
 
   if (resolved.items.length === 0) {
     const recommendationId = recommendationIdFor(value.userId, value.context, []);
@@ -208,14 +228,14 @@ export function recommend(request, deps = {}) {
       warnings,
       excluded_items: [],
       message: "The wardrobe has no garments to recommend from.",
-    }, config.modelVersion);
+    }, effectiveModelVersion, scoreMeta);
   }
 
   const normalized = resolved.items.map((raw) => normalizeGarment(raw));
   const { eligible, excluded } = partitionItems(normalized, value.context, profile, config);
   const generated = generateCandidates(eligible, value.context, profile, config);
   const candidates = generated.filter((outfit) => outfitViolations(outfit).length === 0);
-  const ranked = rankOutfits(candidates, value.context, profile, history, config);
+  const ranked = rankOutfits(candidates, value.context, profile, history, config, learnedModel);
   const selected = selectDiverse(ranked, value.limit, config);
   rankingMeta.feedback_applied = selected.some((outfit) => outfit.feedback_applied);
 
@@ -224,7 +244,7 @@ export function recommend(request, deps = {}) {
   const status = selected.length ? "ok" : "insufficient_candidates";
   const body = {
     recommendation_id: recommendationId,
-    recommendations: selected.map((outfit) => publicOutfit(outfit, config.modelVersion)),
+    recommendations: selected.map((outfit) => publicOutfit(outfit, effectiveModelVersion)),
     ranking: rankingMeta,
     warnings,
     excluded_items: excluded,
@@ -239,13 +259,13 @@ export function recommend(request, deps = {}) {
       recommendation_id: recommendationId,
       user_id: value.userId,
       context: value.context,
-      model_version: config.modelVersion,
+      model_version: effectiveModelVersion,
       ranking_method: rankingMeta.method,
-      learned_model: false,
+      learned_model: useLearned,
       shown: selected.map(snapshot),
       eligible_not_shown: ranked.filter((outfit) => !shown.has(outfit.outfitId)).map(snapshot),
     });
   }
 
-  return envelope(status, body, config.modelVersion);
+  return envelope(status, body, effectiveModelVersion, scoreMeta);
 }

@@ -30,6 +30,8 @@ export function defaultConfig() {
     feedbackMinEvents: runtime.feedback_min_events,
     personalization: runtime.personalization,
     diversityMaxSharedCore: runtime.diversity_max_shared_core,
+    rankingPolicy: runtime.ranking_policy ?? "baseline",
+    learnedModelPath: runtime.learned_model_path ?? null,
     weights: { ...weightsDoc.weights },
     feedbackAdjustmentWeight: weightsDoc.feedback_adjustment_weight,
     uninformedScore: weightsDoc.uninformed_score,

@@ -1,8 +1,16 @@
-# Baseline features
+# Ranking features
+
+## Learned ranker (default)
+
+When `ranking_policy` is `learned` in `config/runtime.json`, Muse scores outfits with the Closette-owned MLP in `ml/muse/weights/ranker-v1.json`. Inference lives in `ranking/learned.js`. The feature vector matches `ml/muse/features.py`: the seven content signals below (missing filled with 0.5), plus temperature, occasion/season one-hots, outerwear flag, and item-count norm.
+
+Candidate generation and hard rules are unchanged. `ranking.learned_model` is true and `model_version` becomes `muse-ranker-v1`. `score_semantics` is `mlp_preference_score_in_0_1`. Set `ranking_policy` to `baseline` to restore the hand-weighted path below.
+
+## Baseline features
 
 Weights live in `ranking/weights.json`. They are renormalized over the features that have evidence. A feature with no evidence is left out. It is not replaced with a neutral guess, except when every feature is missing: the score is then `uninformed_score` (0.5).
 
-The score is in [0, 1]. It is not a probability. `score_semantics` on the response is `weighted_average_of_active_features_not_a_probability`.
+The baseline score is in [0, 1]. It is not a probability. `score_semantics` on the response is `weighted_average_of_active_features_not_a_probability`.
 
 | Feature | Weight | Active when | Value |
 | --- | --- | --- | --- |
@@ -18,7 +26,7 @@ Feedback is not inside that average. After at least 3 stored events for the user
 
 `score += 0.06 * (sigmoid(raw) - 0.5)`
 
-`raw` sums like and save as +1, worn as +1.5, a dislike with reason code `color`, `formality`, `weather`, `style`, or `comfort` as -1, and a dismissal or a dislike without one of those codes as -0.15. Each event is scaled by how much of that event’s garment list appears in the outfit. Fewer than 3 events leaves the score unchanged. The response still sets `learned_model` to false.
+`raw` sums like and save as +1, worn as +1.5, a dislike with reason code `color`, `formality`, `weather`, `style`, or `comfort` as -1, and a dismissal or a dislike without one of those codes as -0.15. Each event is scaled by how much of that event’s garment list appears in the outfit. Fewer than 3 events leaves the score unchanged. On the baseline path the response sets `learned_model` to false; the learned MLP path may still report feedback_affinity in features when history exists.
 
 Reasons are attached when an active, positively weighted feature is at least 0.7, or 0.85 for color harmony. Feedback text is added only when the history contains a like, save, or worn and the sigmoid value is at least 0.7. Otherwise the outfit gets “Built from pieces in your wardrobe that passed the outfit rules.”
 

@@ -2,6 +2,7 @@ import { COLOR_FAMILIES, NEUTRAL_COLORS, SPECIFIC_DISLIKE_REASONS } from "../sch
 import { formalityAffinity } from "./affinity.js";
 import { layerContextActive, suggestsCoolLayer } from "../candidate_generation/layers.js";
 import { average, clamp01, round4 } from "../util.js";
+import { buildLearnedVector, scoreLearnedVector } from "./learned.js";
 
 export function pairHarmony(left, right) {
   if (left === right) return 0.85;
@@ -181,7 +182,7 @@ function reasonsFor(features, feedback, context, config) {
   return { reasons, reason_codes: codes };
 }
 
-export function scoreOutfit(outfit, context, profile, events, config) {
+export function scoreOutfit(outfit, context, profile, events, config, learnedModel = null) {
   const features = contentFeatures(outfit, context, profile, config);
   const feedback = feedbackSignal(outfit, events, config);
   let weightSum = 0;
@@ -193,26 +194,53 @@ export function scoreOutfit(outfit, context, profile, events, config) {
     valueSum += config.weights[name] * value;
     signalsUsed.push(name);
   }
-  let score = weightSum === 0 ? config.uninformedScore : valueSum / weightSum;
+  let baselineScore = weightSum === 0 ? config.uninformedScore : valueSum / weightSum;
   if (feedback.value != null && config.feedbackAdjustmentWeight > 0) {
-    score += config.feedbackAdjustmentWeight * (feedback.value - 0.5);
+    baselineScore += config.feedbackAdjustmentWeight * (feedback.value - 0.5);
     signalsUsed.push("feedback_affinity");
   }
-  score = round4(clamp01(score));
+  baselineScore = round4(clamp01(baselineScore));
+
+  let score = baselineScore;
+  let rankingMethod = "baseline_weighted_features";
+  let learnedApplied = false;
+  if (learnedModel && config.rankingPolicy === "learned") {
+    const vector = buildLearnedVector(features, context, outfit);
+    score = scoreLearnedVector(learnedModel, vector);
+    signalsUsed.push("learned_ranker");
+    rankingMethod = "learned_mlp_ranker";
+    learnedApplied = true;
+  }
+
   const explanation = reasonsFor(features, feedback, context, config);
+  if (learnedApplied) {
+    explanation.reasons = [
+      "Ranked by Closette's learned Muse outfit model",
+      ...explanation.reasons.filter((reason) => reason !== "Built from pieces in your wardrobe that passed the outfit rules"),
+    ].slice(0, 3);
+    if (!explanation.reason_codes.includes("learned_ranker")) {
+      explanation.reason_codes = ["learned_ranker", ...explanation.reason_codes].slice(0, 4);
+    }
+  }
+
   return {
     ...outfit,
     score,
+    baseline_score: baselineScore,
     features: { ...features, feedback_affinity: feedback.value },
     signals_used: signalsUsed,
     feedback_applied: feedback.value != null,
+    learned_applied: learnedApplied,
+    ranking_method: rankingMethod,
     reasons: explanation.reasons,
     reason_codes: explanation.reason_codes,
   };
 }
 
-export function rankOutfits(candidates, context, profile, events, config) {
-  const ranked = candidates.map((candidate) => scoreOutfit(candidate, context, profile, events, config));
+export function rankOutfits(candidates, context, profile, events, config, learnedModel = null) {
+  const ranked = candidates.map((candidate) =>
+    scoreOutfit(candidate, context, profile, events, config, learnedModel),
+  );
   ranked.sort((a, b) => b.score - a.score || a.outfitId.localeCompare(b.outfitId));
   return ranked;
 }

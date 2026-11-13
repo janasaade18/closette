@@ -6,6 +6,13 @@ import { recommend } from "../pipeline.js";
 import { SharedLinUCB } from "../personalization/linucb.js";
 import { piece, request } from "./helpers.js";
 
+function baselineConfig(overrides = {}) {
+  const config = defaultConfig();
+  config.rankingPolicy = "baseline";
+  Object.assign(config, overrides);
+  return config;
+}
+
 function idsOf(result) {
   return result.body.recommendations.map((outfit) => outfit.items);
 }
@@ -61,13 +68,23 @@ describe("candidate generation and ranking", () => {
   });
 
   it("keeps a new user on the baseline and does not cite feedback", () => {
-    const result = recommend(request(basic(), { weather: { temperature_c: 21 } }));
+    const result = recommend(request(basic(), { weather: { temperature_c: 21 } }), {
+      config: baselineConfig(),
+    });
     assert.equal(result.body.ranking.learned_model, false);
     assert.equal(result.body.ranking.personalization, undefined);
     assert.equal(result.body.ranking.feedback_events, 0);
     assert.equal(result.body.ranking.feedback_applied, false);
     const text = result.body.recommendations.flatMap((outfit) => outfit.reasons).join(" ");
     assert.equal(/liked|saved|worn|learned/i.test(text), false);
+  });
+
+  it("uses the learned ranker by default without inventing feedback", () => {
+    const result = recommend(request(basic(), { weather: { temperature_c: 21 } }));
+    assert.equal(result.body.ranking.learned_model, true);
+    assert.equal(result.body.ranking.method, "learned_mlp_ranker");
+    assert.equal(result.body.ranking.feedback_applied, false);
+    assert.equal(result.body.model_version, "muse-ranker-v1");
   });
 
   it("still recommends when color and pattern are missing", () => {
@@ -189,10 +206,11 @@ describe("candidate generation and ranking", () => {
       ...basic(),
       piece("coat", "coat", { temperature_range_c: { min_c: -5, max_c: 16 }, colors: { primary: "beige" } }),
     ];
-    const cold = recommend(request(wardrobe, { weather: { temperature_c: 8 }, limit: 3 }));
+    const config = baselineConfig();
+    const cold = recommend(request(wardrobe, { weather: { temperature_c: 8 }, limit: 3 }), { config });
     assert.equal(cold.body.recommendations[0].items.includes("coat"), true);
     assert.equal(cold.body.recommendations[0].reason_codes.includes("context_layer"), true);
-    const warm = recommend(request(wardrobe, { weather: { temperature_c: 24 }, limit: 3 }));
+    const warm = recommend(request(wardrobe, { weather: { temperature_c: 24 }, limit: 3 }), { config });
     const warmIds = warm.body.recommendations.flatMap((outfit) => outfit.items);
     assert.equal(warmIds.includes("coat"), false);
   });
@@ -209,6 +227,7 @@ describe("candidate generation and ranking", () => {
         ],
         { occasion: "formal", weather: { temperature_c: 22 }, limit: 4 },
       ),
+      { config: baselineConfig() },
     );
     assert.equal(result.body.recommendations[0].items.includes("blazer"), true);
     const used = result.body.recommendations.flatMap((outfit) => outfit.items);
@@ -227,18 +246,28 @@ describe("candidate generation and ranking", () => {
       profile: { preferred_styles: ["classic"] },
       limit: 2,
     });
-    const occasionFirst = defaultConfig();
-    occasionFirst.weights = {
-      occasion_match: 1,
-      style_match: 0,
-      garment_type_preference: 0,
-      color_preference: 0,
-      color_harmony: 0,
-      weather_suitability: 0,
-      context_layer: 0,
-    };
-    const styleFirst = defaultConfig();
-    styleFirst.weights = { ...occasionFirst.weights, occasion_match: 0, style_match: 1 };
+    const occasionFirst = baselineConfig({
+      weights: {
+        occasion_match: 1,
+        style_match: 0,
+        garment_type_preference: 0,
+        color_preference: 0,
+        color_harmony: 0,
+        weather_suitability: 0,
+        context_layer: 0,
+      },
+    });
+    const styleFirst = baselineConfig({
+      weights: {
+        occasion_match: 0,
+        style_match: 1,
+        garment_type_preference: 0,
+        color_preference: 0,
+        color_harmony: 0,
+        weather_suitability: 0,
+        context_layer: 0,
+      },
+    });
     const byOccasion = recommend(body, { config: occasionFirst });
     const byStyle = recommend(body, { config: styleFirst });
     assert.equal(byOccasion.body.recommendations[0].roles.top, "smart");
@@ -255,6 +284,7 @@ describe("candidate generation and ranking", () => {
       piece("shoes", "shoes-b", { colors: { primary: "white" } }),
     ];
     const body = request(wardrobe, { limit: 2 });
+    const config = baselineConfig();
     const seed = (action, count) => {
       const store = new MemoryMuseStore();
       for (let index = 0; index < count; index += 1) {
@@ -272,9 +302,9 @@ describe("candidate generation and ranking", () => {
       }
       return store;
     };
-    const none = recommend(body, { store: new MemoryMuseStore() });
-    const two = recommend(body, { store: seed("like", 2) });
-    const three = recommend(body, { store: seed("like", 3) });
+    const none = recommend(body, { store: new MemoryMuseStore(), config });
+    const two = recommend(body, { store: seed("like", 2), config });
+    const three = recommend(body, { store: seed("like", 3), config });
     assert.deepEqual(idsOf(two), idsOf(none));
     assert.deepEqual(three.body.recommendations[0].items, ["top-b", "bottom-b", "shoes-b"]);
     assert.equal(three.body.recommendations[0].reason_codes.includes("feedback"), true);
@@ -305,7 +335,7 @@ describe("candidate generation and ranking", () => {
         model_version: "muse-v1",
       });
     }
-    const result = recommend(request(wardrobe, { limit: 8 }), { store });
+    const result = recommend(request(wardrobe, { limit: 8 }), { store, config: baselineConfig() });
     const pure = result.body.recommendations.find(
       (outfit) => outfit.items.includes("top-b") && outfit.items.includes("bottom-b") && outfit.items.includes("shoes-b"),
     );
@@ -339,9 +369,7 @@ describe("candidate generation and ranking", () => {
   });
 
   it("caps a large wardrobe deterministically", () => {
-    const config = defaultConfig();
-    config.maxCandidates = 4;
-    config.slotBeam = 2;
+    const config = baselineConfig({ maxCandidates: 4, slotBeam: 2 });
     const wardrobe = [];
     for (let index = 1; index <= 9; index += 1) wardrobe.push(piece("top", `top-0${index}`));
     wardrobe.push(piece("bottom", "bottom-01"), piece("bottom", "bottom-02"));

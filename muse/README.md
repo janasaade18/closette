@@ -39,11 +39,13 @@ V1 outfits are top + bottom + footwear, or a one-piece plus footwear. A coat or 
 
 ## Scores and reasons
 
-`score` is a weighted average of the signals that had evidence, in [0, 1]. It is not a probability. Weights are in `ranking/weights.json`. Features are documented in `ranking/FEATURES.md`.
+By default (`ranking_policy: "learned"`), `score` comes from Closette’s Muse MLP ranker (`muse-ranker-v1`). Training lives under `ml/muse/`. Features are documented in `ranking/FEATURES.md`.
+
+With `ranking_policy: "baseline"`, `score` is a weighted average of the signals that had evidence, in [0, 1]. It is not a probability. Weights are in `ranking/weights.json`.
 
 Hard rules are listed in `compatibility_rules/RULES.md` and configured in `compatibility_rules/config.json`. They do not encode color clashes or style taste.
 
-`ranking.learned_model` is false. Feedback can nudge an outfit after three stored events. A dismissal without a specific reason is a weak signal. The LinUCB module in `personalization/` is tested and is not on the request path.
+`ranking.learned_model` is true when the MLP is active. Feedback can still nudge the baseline path after three stored events. A dismissal without a specific reason is a weak signal. The LinUCB module in `personalization/` is tested and is not on the request path.
 
 ## Nest integration
 
