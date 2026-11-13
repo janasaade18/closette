@@ -23,5 +23,9 @@
   "marketplace_max_products": 24,
   "marketplace_max_items_per_outfit": 1,
   "marketplace_max_mixed_candidates": 120,
-  "marketplace_affinity_weight": 0.08
+  "marketplace_affinity_weight": 0.08,
+  "travel_max_days": 14,
+  "travel_max_items": 16,
+  "travel_max_weight_kg": null,
+  "travel_candidates_per_day": 4
 }

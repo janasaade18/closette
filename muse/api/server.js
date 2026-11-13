@@ -2,7 +2,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { handleFeedback, handleRecommend, contractBody } from "./service.js";
+import { handleFeedback, handleRecommend, handleTravelPack, contractBody } from "./service.js";
 import { FileMuseStore, MemoryMuseStore } from "../feedback/store.js";
 import { MemoryCatalog } from "../pipeline.js";
 import { API_VERSION, MODEL_VERSION } from "../schemas/constants.js";
@@ -68,7 +68,11 @@ export function createServer(options = {}) {
         send(res, { statusCode: 200, body: contractBody() });
         return;
       }
-      if (url.pathname === "/v1/outfits/recommend" || url.pathname === "/v1/outfits/feedback") {
+      if (
+        url.pathname === "/v1/outfits/recommend" ||
+        url.pathname === "/v1/outfits/feedback" ||
+        url.pathname === "/v1/travel/pack"
+      ) {
         if (req.method !== "POST") {
           send(res, apiError(405, "method_not_allowed", "Use POST."));
           return;
@@ -82,7 +86,11 @@ export function createServer(options = {}) {
           return;
         }
         const result =
-          url.pathname === "/v1/outfits/recommend" ? handleRecommend(body, deps) : handleFeedback(body, deps);
+          url.pathname === "/v1/outfits/recommend"
+            ? handleRecommend(body, deps)
+            : url.pathname === "/v1/outfits/feedback"
+              ? handleFeedback(body, deps)
+              : handleTravelPack(body, deps);
         send(res, result);
         return;
       }

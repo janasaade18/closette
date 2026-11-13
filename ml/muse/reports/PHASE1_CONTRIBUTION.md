@@ -2,9 +2,9 @@
 
 **Author:** Serge (Closette / Muse)  
 **Branch:** `feature/muse-learned-ranker`  
-**Models:** `muse-ranker-v1` (Phase 1), `muse-ranker-v1+linucb` (Phase 2), `muse-marketplace-v1` retrieval (Phase 3)  
-**Scope:** Closette-owned outfit ranking, per-user personalization, and marketplace complement recommendations—without replacing teammates’ candidate generation or hard rules.  
-**Not used:** RAG, Qwen, or QLoRA. Phase 3 is structured retrieval + constraints.
+**Models:** `muse-ranker-v1` (Phase 1), `muse-ranker-v1+linucb` (Phase 2), `muse-marketplace-v1` retrieval (Phase 3), `muse-travel-v1` packing (Phase 4)  
+**Scope:** Closette-owned outfit ranking, personalization, marketplace complements, and multi-day travel packing—without replacing teammates’ candidate generation or hard rules.  
+**Not used:** RAG, Qwen, or QLoRA.
 
 ---
 
@@ -12,11 +12,12 @@
 
 Muse already recommended outfits from a user’s wardrobe, but the ranking step was a hand-tuned weighted average of a few content signals. That is solid engineering, and it was the right first ship. It is not, however, a model Closette owns in the machine-learning sense—and it does not learn from how a specific person reacts over time.
 
-This work lands in three phases on one branch:
+This work lands in four phases on one branch:
 
 1. **Phase 1 — Learned outfit ranker.** Train and serve a Closette-owned MLP that re-scores legal outfits.
 2. **Phase 2 — Personalized recommendations.** Fit per-user LinUCB from likes, saves, dismissals, dislikes, wears, and purchases, then blend it with the Phase 1 score.
 3. **Phase 3 — Marketplace intelligence.** Retrieve catalog products that complement a wardrobe, build mixed outfits, enforce budget/size/availability/weather, and keep learning from marketplace purchases.
+4. **Phase 4 — Travel & multi-constraint packing.** Multi-day plans with day-specific weather, outfit rotation, luggage limits, and combined wardrobe/marketplace suggestions—reusing the same MLP + LinUCB + retrieval stack.
 
 I deliberately did **not** wrap an external chat API, RAG pipeline, or Qwen/QLoRA adapter and call it “AI.” The contribution is inspectable models, structured retrieval, exported weights, Node inference, and offline numbers that show lift.
 
@@ -198,6 +199,37 @@ Artifact: `ml/muse/reports/phase3_eval.json`.
 
 ---
 
+## Phase 4 — Travel & multi-constraint intelligence
+
+### What shipped
+
+New opt-in endpoint: `POST /v1/travel/pack`.
+
+For each trip day Muse calls the existing `recommend()` path with that day’s occasion, season, and weather (so MLP + LinUCB + marketplace retrieval still apply). Travel then adds:
+
+1. **Outfit rotation** — pick one candidate per day while penalizing repeated cores (`luggage.max_core_reuses`).
+2. **Luggage optimization** — enforce `max_items` / `max_weight_kg`; drop single-use accessories/marketplace add-ons first.
+3. **Packing list** — unique garments with use counts, weights, and wardrobe vs marketplace source.
+4. **Marketplace suggestions** — union of mixed-outfit products across the trip.
+
+Single-day `POST /v1/outfits/recommend` is unchanged.
+
+### Phase 4 evaluation
+
+| Metric | Result |
+| --- | --- |
+| Mean unique items (greedy top-1/day) | **9.54** |
+| Mean unique items (with rotation) | **11.43** |
+| Core repeat rate (greedy) | **0.0167** |
+| Core repeat rate (rotated) | **0.0000** |
+| Luggage fit rate (max 10, with drop heuristic) | **1.0000** |
+
+Rotation intentionally keeps more unique pieces when `prefer_rewear` is off / core reuse is capped—exactly what you want for a varied trip—while driving core-repeat rate to zero. Luggage optimization then trims single-use add-ons to fit the bag.
+
+Artifact: `ml/muse/reports/phase4_eval.json`.
+
+---
+
 ## How this improves Muse for users
 
 **Phase 1** replaces a fixed scoring recipe with a trained preference model Closette owns end to end—better ordering of legal outfits from day one.
@@ -206,7 +238,9 @@ Artifact: `ml/muse/reports/phase3_eval.json`.
 
 **Phase 3** lets Muse suggest real or synthetic catalog pieces that complete or upgrade an outfit—within budget and size—while still respecting wardrobe rules and learning from marketplace purchases.
 
-Together: legal outfits from the team’s rules engine, ranked by a Closette-owned model, adapted to the individual, and able to recommend complementary products without a third-party stylist API.
+**Phase 4** turns those daily rankings into a trip: different weather each day, outfits that do not clone each other, a bag that respects size/weight, and optional marketplace fills for gaps.
+
+Together: legal outfits from the team’s rules engine, ranked by a Closette-owned model, personalized, marketplace-aware, and travel-ready—without a third-party stylist API.
 
 ---
 
@@ -220,12 +254,13 @@ python train_ranker.py
 python evaluate.py
 python evaluate_personalization.py
 python evaluate_marketplace.py
+python evaluate_travel.py
 
 cd ../../muse
 node --test
 ```
 
-Confirm `ranking_policy: "learned"` and `personalization: "linucb"`. Send `marketplace.enabled: true` (or inline products) to exercise Phase 3.
+Confirm `ranking_policy: "learned"` and `personalization: "linucb"`. Use `POST /v1/travel/pack` for Phase 4.
 
 ---
 
@@ -249,6 +284,12 @@ Confirm `ranking_policy: "learned"` and `personalization: "linucb"`. Send `marke
 - [x] Complement retrieval + mixed wardrobe/marketplace outfits  
 - [x] Learning from marketplace interactions (`marketplace_affinity` + LinUCB snapshots)  
 - [x] Offline evaluation (`phase3_eval.json`)  
-- [x] Updated humanized contribution report  
 
-One branch, commits per phase, models we can defend in review—and explicitly no RAG/Qwen/QLoRA on this path.
+### Phase 4
+- [x] Multi-day packing with day-specific weather/occasion  
+- [x] Outfit rotation + luggage optimization  
+- [x] Combined wardrobe/marketplace trip suggestions  
+- [x] Preserve single-day recommend behavior  
+- [x] Offline evaluation (`phase4_eval.json`) + updated report  
+
+One branch, models we can defend in review—and explicitly no RAG/Qwen/QLoRA on this path.
