@@ -376,17 +376,25 @@ export function recommend(request, deps = {}) {
   let status = selected.length ? "ok" : weatherBlocked ? "weather_unsuitable" : "insufficient_candidates";
   const mixedSelected = usage.mixed_outfits > 0;
   const cold = typeof tempC === "number" && tempC < (config.coldTempC ?? 18);
+  const veryCold = typeof tempC === "number" && tempC <= 8;
   const hot = typeof tempC === "number" && tempC >= 26;
   let message;
   if (selected.length) {
     const weakWeather = selected.filter(
       (outfit) => outfit.features?.weather_suitability != null && outfit.features.weather_suitability < 0.45,
     );
-    if (weakWeather.length === selected.length && (cold || hot)) {
+    const missingOuter = veryCold && selected.every((outfit) => !outfit.roles?.outerwear);
+    const heavyOuter =
+      hot &&
+      selected.every((outfit) => {
+        const outer = outfit.items?.find((item) => item.role === "outerwear");
+        return outer && (outer.subcategory === "coat" || outer.subcategory === "trench-coat");
+      });
+    if ((weakWeather.length === selected.length && (cold || hot)) || missingOuter || heavyOuter) {
       status = "weather_compromise";
-      message = cold
-        ? `These are the best options from your closet, but they are light for ${tempC}°C. A coat or warmer layers would be better.`
-        : `These are the best options from your closet, but they look heavy for ${tempC}°C. Lighter pieces would be better.`;
+      message = cold || missingOuter
+        ? `Not recommended as-is — it is cold (${tempC}°C). These are the warmest looks your closet can make; add a coat or warmer layers.`
+        : `Not recommended as-is — it is hot (${tempC}°C). These looks are heavy for the weather; lighter pieces would be better.`;
       warnings.push({
         code: "weather_compromise",
         message,
@@ -399,10 +407,10 @@ export function recommend(request, deps = {}) {
     }
   } else if (weatherBlocked) {
     message = cold
-      ? `Nothing in this wardrobe is suitable for ${tempC}°C. Summer pieces like tees and shorts were left out — add trousers, closed shoes, or a coat.`
+      ? `Not recommended — it is cold (${tempC}°C). Your closet only has pieces that do not fit this weather (tees, shorts, sandals, etc.). Add trousers, closed shoes, or a coat.`
       : hot
-        ? `Nothing in this wardrobe is suitable for ${tempC}°C. Heavy coats or winter layers were left out — add lighter tops and breathable pieces.`
-        : `Nothing in this wardrobe fits the requested temperature (${tempC}°C).`;
+        ? `Not recommended — it is hot (${tempC}°C). Your closet only has heavy / winter pieces for this weather. Add lighter tops and breathable pieces.`
+        : `Not recommended — nothing in this wardrobe fits ${tempC}°C.`;
   } else {
     message = "Garments were found, and none formed an outfit that passed the rules.";
   }

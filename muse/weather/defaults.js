@@ -79,16 +79,16 @@ export function applyClimateDefaults(item) {
 export function weatherAdvice(tempC) {
   if (typeof tempC !== "number") return null;
   if (tempC <= 8) {
-    return "It is cold — prefer layers, trousers, closed shoes, and a coat when you have them.";
+    return "Not recommended for summer-only pieces — it is cold. Prefer layers, trousers, closed shoes, and a coat.";
   }
   if (tempC <= 14) {
-    return "It is cool — light layers or a jacket usually work better than summer pieces alone.";
+    return "Cool weather — light layers or a jacket beat tees and shorts alone.";
   }
   if (tempC >= 28) {
-    return "It is hot — prefer breathable tops, shorts or light trousers, and skip heavy coats.";
+    return "Not recommended for heavy coats — it is hot. Prefer breathable tops, shorts or light trousers.";
   }
   if (tempC >= 22) {
-    return "It is warm — lighter fabrics fit better than winter outerwear.";
+    return "Warm weather — lighter fabrics fit better than winter outerwear.";
   }
   return null;
 }

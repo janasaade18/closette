@@ -23,7 +23,8 @@ describe("weather suitability messaging", () => {
     assert.equal(result.statusCode, 200);
     assert.equal(result.body.status, "weather_unsuitable");
     assert.equal(result.body.recommendations.length, 0);
-    assert.match(result.body.message, /cold|coat|suitable/i);
+    assert.match(result.body.message, /not recommended/i);
+    assert.match(result.body.message, /cold/i);
     assert.ok(result.body.excluded_items.some((row) => row.rules.includes("temperature_range")));
   });
 
@@ -49,7 +50,28 @@ describe("weather suitability messaging", () => {
     );
     assert.equal(result.body.status, "weather_unsuitable");
     assert.equal(result.body.recommendations.length, 0);
-    assert.match(result.body.message, /hot|lighter|suitable/i);
+    assert.match(result.body.message, /not recommended/i);
+    assert.match(result.body.message, /hot/i);
+  });
+
+  it("flags cold looks without a coat as a compromise", () => {
+    const config = defaultConfig();
+    config.personalization = "baseline";
+    config.marketplaceEnabled = false;
+    const result = recommend(
+      request(
+        [
+          piece("top", "tee", { subcategory: "t-shirt", formality: "casual" }),
+          piece("bottom", "jeans", { subcategory: "jeans", formality: "casual" }),
+          piece("shoes", "sneakers", { subcategory: "sneakers", formality: "casual" }),
+        ],
+        { weather: { temperature_c: 6 }, limit: 2 },
+      ),
+      { config },
+    );
+    assert.equal(result.body.status, "weather_compromise");
+    assert.ok(result.body.recommendations.length >= 1);
+    assert.match(result.body.message, /not recommended|cold/i);
   });
 
   it("keeps a coat in the top look on a cold day when available", () => {
