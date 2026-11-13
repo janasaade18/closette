@@ -1,0 +1,7 @@
+{
+  "n_train": 4563,
+  "n_test": 1141,
+  "accuracy": 0.7905,
+  "roc_auc": 0.8657,
+  "positive_rate_test": 0.3593
+}
