@@ -3,7 +3,8 @@
 **Author:** Serge (Closette / Muse)  
 **Branch:** `feature/muse-learned-ranker`  
 **Models:** `muse-ranker-v1` (Phase 1), `muse-ranker-v1+linucb` (Phase 2), `muse-marketplace-v1` retrieval (Phase 3), `muse-travel-v1` packing (Phase 4)  
-**Scope:** Closette-owned outfit ranking, personalization, marketplace complements, and multi-day travel packing—without replacing teammates’ candidate generation or hard rules.  
+**Also shipped on this branch:** weather intelligence for sparse closets + Expo Muse client wiring (`feature/muse-ml-phases` on the mobile app).  
+**Scope:** Closette-owned outfit ranking, personalization, marketplace complements, multi-day travel packing, and explicit weather unsuitable/compromise messaging—without replacing teammates’ candidate generation or hard rules.  
 **Not used:** RAG, Qwen, or QLoRA.
 
 ---
@@ -25,14 +26,14 @@ I deliberately did **not** wrap an external chat API, RAG pipeline, or Qwen/QLoR
 
 ## How Muse works after Phase 1 and Phase 2
 
-At a high level the request path teammates already know is unchanged:
+At a high level the request path teammates already know is unchanged, with weather defaults applied before partitioning:
 
 1. Resolve the wardrobe (inline garments or catalog ids).
-2. Normalize garments and partition out unavailable or context-ineligible pieces.
-3. Generate candidate outfits from the existing structures.
+2. Normalize garments, **apply climate / rain defaults** when `temperature_range_c` is missing, then partition out unavailable or context-ineligible pieces.
+3. Generate candidate outfits from the existing structures (cool/rain days prefer optional outerwear).
 4. Drop candidates that violate hard rules.
-5. **Score and sort** the survivors — Phase 1 MLP, then Phase 2 LinUCB blend when the user has enough history.
-6. Apply diversity selection and return the public recommendation envelope.
+5. **Score and sort** the survivors — Phase 1 MLP, then Phase 2 LinUCB blend when the user has enough history, plus cold-layer boost / hot-coat penalty.
+6. Apply diversity selection and return the public recommendation envelope (`ok`, `weather_unsuitable`, or `weather_compromise` when relevant).
 
 Responses advertise the method clearly:
 
@@ -230,6 +231,30 @@ Artifact: `ml/muse/reports/phase4_eval.json`.
 
 ---
 
+## Weather intelligence (post–Phase 4 product hardening)
+
+Mobile closets often omit `temperature_range_c`. Without defaults, Muse treated almost everything as weather-legal and could rank a bare short-sleeve tee on a cool/rainy day as a fine top look. This pass makes weather **enforceable and explainable** without rewriting teammates’ rules engine.
+
+### What shipped
+
+| Piece | Behavior |
+| --- | --- |
+| `muse/weather/defaults.js` | Subcategory/category climate defaults (men’s + women’s: blouse, skirt, dress, heels, etc.); rain/snow unsuitable defaults for open summer pieces |
+| Partition + status | Summer-only closets on cold days → `weather_unsuitable`; winter-heavy closets on hot days → same; bare cool/rain looks → `weather_compromise` with **Not recommended** copy |
+| Layering | `suggestsCoolLayer` true for `temp ≤ cold_temp_c` **or** rain/snow/cold; jackets eligible through ~18–20°C; `cold_layer_boost` / hot-coat penalty in ranking |
+| Advice | `weather.advice` + `message` on the recommend envelope for cold, hot, and wet contexts |
+| Tests | `muse/tests/weather.test.js` (summer-only cold, winter-only hot, bare cold compromise, coat preferred, hot summer OK, 18° rain wants jacket) |
+
+### Mobile client (separate frontend branch)
+
+- Muse points at LAN `:8787` (`EXPO_PUBLIC_MUSE_URL`); garment classify stays on `:8090`; Nest save on `:3000`.
+- Muse chat defaults to cool/rain (not a stale 22° clear), **re-ranks when weather/occasion chips change**, surfaces `weather_unsuitable` / compromise copy.
+- Optional **live weather** via Open-Meteo from the profile `location` when `weather_aware` is on; otherwise the cool/rain fallback.
+
+Muse taxonomy already includes women’s pieces (blouse, skirt, dress, romper, jumpsuit, flats, heels, leggings). Weather defaults cover those the same way as men’s subcategories.
+
+---
+
 ## How this improves Muse for users
 
 **Phase 1** replaces a fixed scoring recipe with a trained preference model Closette owns end to end—better ordering of legal outfits from day one.
@@ -240,7 +265,9 @@ Artifact: `ml/muse/reports/phase4_eval.json`.
 
 **Phase 4** turns those daily rankings into a trip: different weather each day, outfits that do not clone each other, a bag that respects size/weight, and optional marketplace fills for gaps.
 
-Together: legal outfits from the team’s rules engine, ranked by a Closette-owned model, personalized, marketplace-aware, and travel-ready—without a third-party stylist API.
+**Weather intelligence** stops “random summer looks on cold/rainy days”: sparse closets get an honest not-recommended status, and cool/wet days prefer jackets when the wardrobe has them.
+
+Together: legal outfits from the team’s rules engine, ranked by a Closette-owned model, personalized, marketplace-aware, travel-ready, and weather-honest—without a third-party stylist API.
 
 ---
 
@@ -258,9 +285,10 @@ python evaluate_travel.py
 
 cd ../../muse
 node --test
+node --test tests/weather.test.js
 ```
 
-Confirm `ranking_policy: "learned"` and `personalization: "linucb"`. Use `POST /v1/travel/pack` for Phase 4.
+Confirm `ranking_policy: "learned"` and `personalization: "linucb"`. Use `POST /v1/travel/pack` for Phase 4. For mobile smoke: Muse `:8787`, Nest `:3000` (closet save), garment ML `:8090` (photo classify only).
 
 ---
 
@@ -291,5 +319,12 @@ Confirm `ranking_policy: "learned"` and `personalization: "linucb"`. Use `POST /
 - [x] Combined wardrobe/marketplace trip suggestions  
 - [x] Preserve single-day recommend behavior  
 - [x] Offline evaluation (`phase4_eval.json`) + updated report  
+
+### Weather intelligence + client wiring
+- [x] Climate / rain defaults for garments missing temperature metadata  
+- [x] `weather_unsuitable` / `weather_compromise` statuses and user-facing messages  
+- [x] Cool + rain layering preference (jacket over bare short sleeve)  
+- [x] Weather unit tests  
+- [x] Expo Muse URL, weather chip re-rank, live weather fallback  
 
 One branch, models we can defend in review—and explicitly no RAG/Qwen/QLoRA on this path.
