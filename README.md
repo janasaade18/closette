@@ -25,6 +25,26 @@
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
+## Brand accounts
+
+Apply `supabase/migrations/20261113_brand_collabs.sql` in the Supabase SQL editor. `SUPABASE_SERVICE_ROLE_KEY` in `.env` is what creates brand logins. Do not put that key in the mobile app.
+
+Promote an admin, then sign that person in on the app:
+
+```sql
+update public.users
+set role = 'admin'
+where email = 'you@example.com';
+```
+
+Admin routes (bearer access token, `users.role = admin`):
+
+- `POST /brands` — create the auth user and brand. Body: `name`, `email`, `password`, optional `description`. The temporary password is returned once.
+- `POST /brands/:brandId/password` — body `{ "password": "..." }`.
+- `PATCH /brands/:brandId/active` — body `{ "isActive": false }`.
+
+A brand owner stays `role = 'user'`. Product photos and catalog edits go through Supabase as that signed-in owner. Authenticated users cannot change `users.role`.
+
 ## Project setup
 
 ```bash
