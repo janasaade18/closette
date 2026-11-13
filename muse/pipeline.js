@@ -293,7 +293,7 @@ export function recommend(request, deps = {}) {
   const { eligible, excluded } = partitionItems(normalized, value.context, profile, config);
   const tempC = value.context.weather?.temperature_c;
   const weatherExcluded = excluded.filter((row) => row.rules.includes(RULE.temperatureRange));
-  const advice = weatherAdvice(tempC);
+  const advice = weatherAdvice(tempC, value.context.weather?.condition);
   if (weatherExcluded.length) {
     warnings.push({
       code: "weather_excluded_items",
@@ -375,25 +375,28 @@ export function recommend(request, deps = {}) {
     weatherExcluded.length >= Math.max(1, Math.ceil(excluded.length * 0.5));
   let status = selected.length ? "ok" : weatherBlocked ? "weather_unsuitable" : "insufficient_candidates";
   const mixedSelected = usage.mixed_outfits > 0;
-  const cold = typeof tempC === "number" && tempC < (config.coldTempC ?? 18);
-  const veryCold = typeof tempC === "number" && tempC <= 8;
+  const cold = typeof tempC === "number" && tempC <= (config.coldTempC ?? 18);
+  const wet = value.context.weather?.condition === "rain" || value.context.weather?.condition === "snow";
+  const needsLayer = cold || wet;
   const hot = typeof tempC === "number" && tempC >= 26;
   let message;
   if (selected.length) {
     const weakWeather = selected.filter(
       (outfit) => outfit.features?.weather_suitability != null && outfit.features.weather_suitability < 0.45,
     );
-    const missingOuter = veryCold && selected.every((outfit) => !outfit.roles?.outerwear);
+    const missingOuter = needsLayer && selected.every((outfit) => !outfit.roles?.outerwear);
     const heavyOuter =
       hot &&
       selected.every((outfit) => {
         const outer = outfit.items?.find((item) => item.role === "outerwear");
         return outer && (outer.subcategory === "coat" || outer.subcategory === "trench-coat");
       });
-    if ((weakWeather.length === selected.length && (cold || hot)) || missingOuter || heavyOuter) {
+    if ((weakWeather.length === selected.length && (cold || hot || wet)) || missingOuter || heavyOuter) {
       status = "weather_compromise";
-      message = cold || missingOuter
-        ? `Not recommended as-is — it is cold (${tempC}°C). These are the warmest looks your closet can make; add a coat or warmer layers.`
+      message = missingOuter || (cold && !hot)
+        ? wet
+          ? `Not recommended as-is — it is wet${typeof tempC === "number" ? ` (${tempC}°C)` : ""}. Add a jacket or raincoat; a short-sleeve tee alone is a poor fit.`
+          : `Not recommended as-is — it is cool (${tempC}°C). These are the warmest looks your closet can make; add a jacket or warmer layers.`
         : `Not recommended as-is — it is hot (${tempC}°C). These looks are heavy for the weather; lighter pieces would be better.`;
       warnings.push({
         code: "weather_compromise",

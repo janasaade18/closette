@@ -23,14 +23,15 @@ const BY_SUBCATEGORY = {
   sneakers: { min_c: 0, max_c: 34 },
   flats: { min_c: 6, max_c: 32 },
   leggings: { min_c: 0, max_c: 26 },
-  sweatshirt: { min_c: -2, max_c: 18 },
-  hoodie: { min_c: -2, max_c: 18 },
-  sweater: { min_c: -5, max_c: 16 },
-  jacket: { min_c: -5, max_c: 16 },
+  sweatshirt: { min_c: -2, max_c: 20 },
+  hoodie: { min_c: -2, max_c: 20 },
+  sweater: { min_c: -5, max_c: 18 },
+  // Light jackets stay eligible through cool / rainy days around 18°C.
+  jacket: { min_c: -5, max_c: 20 },
   blazer: { min_c: 4, max_c: 22 },
   coat: { min_c: -12, max_c: 14 },
-  "trench-coat": { min_c: -8, max_c: 14 },
-  raincoat: { min_c: 0, max_c: 18 },
+  "trench-coat": { min_c: -8, max_c: 18 },
+  raincoat: { min_c: 0, max_c: 22 },
   boots: { min_c: -12, max_c: 16 },
   "formal-shoes": { min_c: -2, max_c: 28 },
   heels: { min_c: 4, max_c: 30 },
@@ -58,31 +59,50 @@ export function climateDefaultFor(item) {
   return null;
 }
 
+/** Open shoes / summer pieces that should not go out in rain without a better option. */
+const RAIN_UNSUITABLE = new Set(["sandals", "heels", "flats", "tank-top", "shorts", "romper"]);
+
 /**
  * Fill missing temperature bounds only. Explicit garment metadata always wins.
+ * Also fills rain/snow unsuitable_conditions when the closet left them empty.
  */
 export function applyClimateDefaults(item) {
-  if (item.temperatureMin != null || item.temperatureMax != null) {
-    return { ...item, climate_defaulted: false };
+  let next = { ...item, climate_defaulted: false };
+  if (item.temperatureMin == null && item.temperatureMax == null) {
+    const defaults = climateDefaultFor(item);
+    if (defaults) {
+      next = {
+        ...next,
+        temperatureMin: defaults.min_c,
+        temperatureMax: defaults.max_c,
+        climate_defaulted: true,
+        climate_default_source: defaults.source,
+      };
+    }
   }
-  const defaults = climateDefaultFor(item);
-  if (!defaults) return { ...item, climate_defaulted: false };
-  return {
-    ...item,
-    temperatureMin: defaults.min_c,
-    temperatureMax: defaults.max_c,
-    climate_defaulted: true,
-    climate_default_source: defaults.source,
-  };
+  if ((!next.unsuitableConditions || next.unsuitableConditions.length === 0) && RAIN_UNSUITABLE.has(next.subcategory)) {
+    next = {
+      ...next,
+      unsuitableConditions: ["rain", "snow"],
+      climate_condition_defaulted: true,
+    };
+  }
+  return next;
 }
 
-export function weatherAdvice(tempC) {
+export function weatherAdvice(tempC, condition) {
+  if (condition === "rain") {
+    return "Rainy — prefer a jacket or raincoat, closed shoes, and skip open summer pieces.";
+  }
+  if (condition === "snow") {
+    return "Snow — prefer a coat, closed shoes, and warm layers.";
+  }
   if (typeof tempC !== "number") return null;
   if (tempC <= 8) {
     return "Not recommended for summer-only pieces — it is cold. Prefer layers, trousers, closed shoes, and a coat.";
   }
-  if (tempC <= 14) {
-    return "Cool weather — light layers or a jacket beat tees and shorts alone.";
+  if (tempC <= 18) {
+    return "Cool weather — a jacket or long sleeves beat a short-sleeve tee alone.";
   }
   if (tempC >= 28) {
     return "Not recommended for heavy coats — it is hot. Prefer breathable tops, shorts or light trousers.";

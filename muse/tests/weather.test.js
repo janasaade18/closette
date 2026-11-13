@@ -54,6 +54,46 @@ describe("weather suitability messaging", () => {
     assert.match(result.body.message, /hot/i);
   });
 
+  it("wants a layer on 18 rain and flags bare tees", () => {
+    const config = defaultConfig();
+    config.personalization = "baseline";
+    config.marketplaceEnabled = false;
+    const withJacket = recommend(
+      request(
+        [
+          piece("top", "tee", { subcategory: "t-shirt", formality: "casual" }),
+          piece("bottom", "jeans", { subcategory: "jeans", formality: "casual" }),
+          piece("shoes", "sneakers", { subcategory: "sneakers", formality: "casual" }),
+          piece("jacket", "jacket", {
+            subcategory: "jacket",
+            formality: "smart-casual",
+            colors: { primary: "navy" },
+          }),
+        ],
+        { weather: { temperature_c: 18, condition: "rain" }, limit: 2 },
+      ),
+      { config },
+    );
+    assert.ok(
+      withJacket.body.recommendations[0]?.items.includes("jacket"),
+      "expected jacket on 18° rain when available",
+    );
+
+    const bare = recommend(
+      request(
+        [
+          piece("top", "tee", { subcategory: "t-shirt", formality: "casual" }),
+          piece("bottom", "jeans", { subcategory: "jeans", formality: "casual" }),
+          piece("shoes", "sneakers", { subcategory: "sneakers", formality: "casual" }),
+        ],
+        { weather: { temperature_c: 18, condition: "rain" }, limit: 2 },
+      ),
+      { config },
+    );
+    assert.equal(bare.body.status, "weather_compromise");
+    assert.match(bare.body.message, /not recommended|wet|jacket|cool/i);
+  });
+
   it("flags cold looks without a coat as a compromise", () => {
     const config = defaultConfig();
     config.personalization = "baseline";
