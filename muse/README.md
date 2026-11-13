@@ -39,11 +39,13 @@ V1 outfits are top + bottom + footwear, or a one-piece plus footwear. A coat or 
 
 ## Scores and reasons
 
-`score` is a weighted average of the signals that had evidence, in [0, 1]. It is not a probability. Weights are in `ranking/weights.json`. Features are documented in `ranking/FEATURES.md`.
+By default (`ranking_policy: "learned"`), `score` comes from Closette’s Muse MLP ranker (`muse-ranker-v1`). Training lives under `ml/muse/`. Features are documented in `ranking/FEATURES.md`.
+
+With `ranking_policy: "baseline"`, `score` is a weighted average of the signals that had evidence, in [0, 1]. It is not a probability. Weights are in `ranking/weights.json`.
 
 Hard rules are listed in `compatibility_rules/RULES.md` and configured in `compatibility_rules/config.json`. They do not encode color clashes or style taste.
 
-`ranking.learned_model` is false. Feedback can nudge an outfit after three stored events. A dismissal without a specific reason is a weak signal. The LinUCB module in `personalization/` is tested and is not on the request path.
+`ranking.learned_model` is true when the MLP is active. With enough feedback, Phase 2 fits per-user LinUCB (`personalization: "linucb"`) and blends it with the MLP. Phase 3 can mix wardrobe pieces with marketplace products when `marketplace.enabled` is true (budget/size/availability/weather filters; structured retrieval—not RAG/Qwen). Phase 4 adds `POST /v1/travel/pack` for multi-day plans with rotation and luggage limits; single-day recommend stays unchanged. Feedback actions include `purchase` with optional `source: "marketplace"`. Set `personalization: "baseline"` to turn LinUCB off.
 
 ## Nest integration
 

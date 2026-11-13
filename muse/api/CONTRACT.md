@@ -35,7 +35,7 @@ Example request: `api/examples/request.json`. Example response from the demo war
 
 Each recommendation has `outfit_id`, `items` (wardrobe ids in role order), `roles`, `score`, `reasons`, `reason_codes`, `signals_used`, and `model_version`.
 
-`ranking.learned_model` is false. `ranking.feedback_applied` is true only when the three-event adjustment moved at least one returned outfit.
+`ranking.learned_model` is true when the MLP ranker is active. `ranking.personalization_applied` is true when per-user LinUCB moved at least one returned outfit. `ranking.feedback_applied` is true when feedback affinity or LinUCB affected scoring.
 
 `excluded_items` lists ids removed by hard rules. `warnings` can include `unknown_wardrobe_items`, `unknown_user_wardrobe`, `unknown_fields`, `conflicting_color_preference`, and `explicit_preferences_not_interpreted`.
 
@@ -45,7 +45,7 @@ Each recommendation has `outfit_id`, `items` (wardrobe ids in role order), `role
 | --- | --- | --- |
 | 400 | `invalid_request` | Missing user, bad limit, bad types, duplicate garment ids, bad season or temperature. `fields` names the problem. |
 | 400 | `invalid_json` | Body is not JSON. |
-| 400 | `personalization_not_available` | The client asks for LinUCB. |
+| 400 | `personalization_not_available` | The client asks for an unsupported personalization mode. |
 | 404 | `not_found` | Unknown path. |
 | 405 | `method_not_allowed` | Recommend or feedback called without POST. |
 | 413 | `payload_too_large` | Body over 1 MB. |
@@ -60,7 +60,7 @@ See `feedback/CONTRACT.md`. Example: `api/examples/feedback.json`.
 
 ## `GET /health`
 
-`{ "ok": true, "api_version": "v1", "model_version": "muse-v1", "personalization": "baseline" }`
+`{ "ok": true, "api_version": "v1", "model_version": "muse-v1", "personalization": "linucb" }`
 
 ## `GET /v1/outfits/contract`
 

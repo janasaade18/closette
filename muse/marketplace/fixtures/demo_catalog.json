@@ -1,0 +1,584 @@
+[
+  {
+    "id": "mkt-sneaker-01",
+    "name": "Cloud Runner",
+    "category": "footwear",
+    "subcategory": "sneakers",
+    "colors": {
+      "primary": "white",
+      "secondary": [
+        "grey"
+      ]
+    },
+    "formality": "casual",
+    "style_tags": [
+      "minimal",
+      "street"
+    ],
+    "seasons": [
+      "spring",
+      "summer",
+      "fall"
+    ],
+    "temperature_range_c": {
+      "min_c": 8,
+      "max_c": 34
+    },
+    "availability": "available",
+    "brand": "Orbit",
+    "price": 78,
+    "currency": "USD",
+    "sizes": [
+      "40",
+      "41",
+      "42",
+      "43"
+    ],
+    "in_stock": true,
+    "image_url": "https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=800&q=80",
+    "gender": "unisex"
+  },
+  {
+    "id": "mkt-loafer-01",
+    "name": "Evening Loafer",
+    "category": "footwear",
+    "subcategory": "formal-shoes",
+    "colors": {
+      "primary": "black"
+    },
+    "formality": "formal",
+    "style_tags": [
+      "classic",
+      "elegant"
+    ],
+    "seasons": [
+      "fall",
+      "winter",
+      "spring"
+    ],
+    "temperature_range_c": {
+      "min_c": 0,
+      "max_c": 28
+    },
+    "availability": "available",
+    "brand": "Atelier",
+    "price": 140,
+    "currency": "USD",
+    "sizes": [
+      "40",
+      "41",
+      "42"
+    ],
+    "in_stock": true,
+    "image_url": "https://images.unsplash.com/photo-1614252369475-531eba835eb1?auto=format&fit=crop&w=800&q=80",
+    "gender": "unisex"
+  },
+  {
+    "id": "mkt-blazer-01",
+    "name": "Navy Soft Blazer",
+    "category": "outerwear",
+    "subcategory": "blazer",
+    "colors": {
+      "primary": "navy"
+    },
+    "formality": "smart-casual",
+    "style_tags": [
+      "classic",
+      "smart"
+    ],
+    "seasons": [
+      "spring",
+      "fall",
+      "winter"
+    ],
+    "temperature_range_c": {
+      "min_c": 5,
+      "max_c": 22
+    },
+    "availability": "available",
+    "brand": "Line",
+    "price": 160,
+    "currency": "USD",
+    "sizes": [
+      "S",
+      "M",
+      "L"
+    ],
+    "in_stock": true,
+    "image_url": "https://images.unsplash.com/photo-1593032465175-481ac7f401a0?auto=format&fit=crop&w=900&q=80",
+    "gender": "unisex"
+  },
+  {
+    "id": "mkt-coat-01",
+    "name": "Camel Wool Coat",
+    "category": "outerwear",
+    "subcategory": "coat",
+    "colors": {
+      "primary": "beige"
+    },
+    "formality": "smart-casual",
+    "style_tags": [
+      "classic"
+    ],
+    "seasons": [
+      "fall",
+      "winter"
+    ],
+    "temperature_range_c": {
+      "min_c": -5,
+      "max_c": 14
+    },
+    "availability": "available",
+    "brand": "Hearth",
+    "price": 210,
+    "currency": "USD",
+    "sizes": [
+      "S",
+      "M",
+      "L"
+    ],
+    "in_stock": true,
+    "image_url": "https://images.unsplash.com/photo-1539533018447-63fcba339dff?auto=format&fit=crop&w=800&q=80",
+    "gender": "unisex"
+  },
+  {
+    "id": "mkt-raincoat-01",
+    "name": "City Rain Shell",
+    "category": "outerwear",
+    "subcategory": "raincoat",
+    "colors": {
+      "primary": "navy"
+    },
+    "formality": "casual",
+    "style_tags": [
+      "minimal",
+      "street"
+    ],
+    "seasons": [
+      "spring",
+      "fall"
+    ],
+    "temperature_range_c": {
+      "min_c": 4,
+      "max_c": 22
+    },
+    "availability": "available",
+    "brand": "North",
+    "price": 128,
+    "currency": "USD",
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL"
+    ],
+    "in_stock": true,
+    "image_url": "https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=800&q=80",
+    "gender": "unisex"
+  },
+  {
+    "id": "mkt-jacket-01",
+    "name": "Olive Utility Jacket",
+    "category": "outerwear",
+    "subcategory": "jacket",
+    "colors": {
+      "primary": "olive"
+    },
+    "formality": "casual",
+    "style_tags": [
+      "street",
+      "minimal"
+    ],
+    "seasons": [
+      "spring",
+      "fall"
+    ],
+    "temperature_range_c": {
+      "min_c": 2,
+      "max_c": 20
+    },
+    "availability": "available",
+    "brand": "Morrow",
+    "price": 118,
+    "currency": "USD",
+    "sizes": [
+      "S",
+      "M",
+      "L"
+    ],
+    "in_stock": true,
+    "image_url": "https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=800&q=80",
+    "gender": "unisex"
+  },
+  {
+    "id": "mkt-jeans-01",
+    "name": "Straight Indigo Jean",
+    "category": "bottoms",
+    "subcategory": "jeans",
+    "colors": {
+      "primary": "blue"
+    },
+    "formality": "casual",
+    "style_tags": [
+      "street",
+      "minimal"
+    ],
+    "seasons": [
+      "spring",
+      "summer",
+      "fall"
+    ],
+    "temperature_range_c": {
+      "min_c": 5,
+      "max_c": 30
+    },
+    "availability": "available",
+    "brand": "North",
+    "price": 68,
+    "currency": "USD",
+    "sizes": [
+      "28",
+      "30",
+      "32",
+      "34"
+    ],
+    "in_stock": true,
+    "image_url": "https://images.unsplash.com/photo-1542272454315-7f6b6f66bf8f?auto=format&fit=crop&w=800&q=80",
+    "gender": "unisex"
+  },
+  {
+    "id": "mkt-trouser-01",
+    "name": "Black Tailored Trouser",
+    "category": "bottoms",
+    "subcategory": "trousers",
+    "colors": {
+      "primary": "black"
+    },
+    "formality": "formal",
+    "style_tags": [
+      "classic"
+    ],
+    "seasons": [
+      "fall",
+      "winter",
+      "spring"
+    ],
+    "temperature_range_c": {
+      "min_c": 0,
+      "max_c": 26
+    },
+    "availability": "available",
+    "brand": "Atelier",
+    "price": 110,
+    "currency": "USD",
+    "sizes": [
+      "28",
+      "30",
+      "32",
+      "34"
+    ],
+    "in_stock": true,
+    "image_url": "https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=800&q=80",
+    "gender": "unisex"
+  },
+  {
+    "id": "mkt-tee-01",
+    "name": "Soft White Tee",
+    "category": "tops",
+    "subcategory": "t-shirt",
+    "colors": {
+      "primary": "white"
+    },
+    "formality": "casual",
+    "style_tags": [
+      "minimal"
+    ],
+    "seasons": [
+      "spring",
+      "summer"
+    ],
+    "temperature_range_c": {
+      "min_c": 16,
+      "max_c": 36
+    },
+    "availability": "available",
+    "brand": "Orbit",
+    "price": 32,
+    "currency": "USD",
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL"
+    ],
+    "in_stock": true,
+    "image_url": "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=800&q=80",
+    "gender": "unisex"
+  },
+  {
+    "id": "mkt-shirt-01",
+    "name": "Crisp Oxford Shirt",
+    "category": "tops",
+    "subcategory": "shirt",
+    "colors": {
+      "primary": "white"
+    },
+    "formality": "formal",
+    "style_tags": [
+      "classic"
+    ],
+    "seasons": [
+      "spring",
+      "summer",
+      "fall"
+    ],
+    "temperature_range_c": {
+      "min_c": 8,
+      "max_c": 30
+    },
+    "availability": "available",
+    "brand": "Line",
+    "price": 75,
+    "currency": "USD",
+    "sizes": [
+      "S",
+      "M",
+      "L"
+    ],
+    "in_stock": true,
+    "image_url": "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=800&q=80",
+    "gender": "unisex"
+  },
+  {
+    "id": "mkt-blouse-01",
+    "name": "Silk Sand Blouse",
+    "category": "tops",
+    "subcategory": "blouse",
+    "colors": {
+      "primary": "beige"
+    },
+    "formality": "smart-casual",
+    "style_tags": [
+      "elegant",
+      "classic"
+    ],
+    "seasons": [
+      "spring",
+      "summer",
+      "fall"
+    ],
+    "temperature_range_c": {
+      "min_c": 10,
+      "max_c": 30
+    },
+    "availability": "available",
+    "brand": "Atelier",
+    "price": 88,
+    "currency": "USD",
+    "sizes": [
+      "XS",
+      "S",
+      "M",
+      "L"
+    ],
+    "in_stock": true,
+    "image_url": "https://images.unsplash.com/photo-1564257631407-4deb1f99d992?auto=format&fit=crop&w=800&q=80",
+    "gender": "female"
+  },
+  {
+    "id": "mkt-dress-01",
+    "name": "Midnight Slip Dress",
+    "category": "one-piece",
+    "subcategory": "dress",
+    "colors": {
+      "primary": "black"
+    },
+    "formality": "formal",
+    "style_tags": [
+      "elegant"
+    ],
+    "seasons": [
+      "spring",
+      "summer",
+      "fall"
+    ],
+    "temperature_range_c": {
+      "min_c": 12,
+      "max_c": 32
+    },
+    "availability": "available",
+    "brand": "Atelier",
+    "price": 145,
+    "currency": "USD",
+    "sizes": [
+      "XS",
+      "S",
+      "M"
+    ],
+    "in_stock": true,
+    "image_url": "https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=800&q=80",
+    "gender": "female"
+  },
+  {
+    "id": "mkt-heels-01",
+    "name": "Noir Heel",
+    "category": "footwear",
+    "subcategory": "heels",
+    "colors": {
+      "primary": "black"
+    },
+    "formality": "formal",
+    "style_tags": [
+      "elegant"
+    ],
+    "seasons": [
+      "spring",
+      "summer",
+      "fall"
+    ],
+    "temperature_range_c": {
+      "min_c": 8,
+      "max_c": 30
+    },
+    "availability": "available",
+    "brand": "Line",
+    "price": 120,
+    "currency": "USD",
+    "sizes": [
+      "36",
+      "37",
+      "38",
+      "39"
+    ],
+    "in_stock": true,
+    "image_url": "https://images.unsplash.com/photo-1543163521-1bf539c55dd2?auto=format&fit=crop&w=800&q=80",
+    "gender": "female"
+  },
+  {
+    "id": "mkt-bag-01",
+    "name": "Cognac Day Tote",
+    "category": "accessories",
+    "subcategory": "bag",
+    "colors": {
+      "primary": "brown"
+    },
+    "formality": "smart-casual",
+    "style_tags": [
+      "classic"
+    ],
+    "seasons": [
+      "spring",
+      "summer",
+      "fall",
+      "winter"
+    ],
+    "temperature_range_c": {
+      "min_c": -10,
+      "max_c": 40
+    },
+    "availability": "available",
+    "brand": "Morrow",
+    "price": 95,
+    "currency": "USD",
+    "sizes": [
+      "OS"
+    ],
+    "in_stock": true,
+    "image_url": "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=800&q=80",
+    "gender": "unisex"
+  },
+  {
+    "id": "mkt-scarf-01",
+    "name": "Olive Merino Scarf",
+    "category": "accessories",
+    "subcategory": "scarf",
+    "colors": {
+      "primary": "olive"
+    },
+    "formality": "casual",
+    "style_tags": [
+      "classic"
+    ],
+    "seasons": [
+      "fall",
+      "winter"
+    ],
+    "temperature_range_c": {
+      "min_c": -5,
+      "max_c": 16
+    },
+    "availability": "available",
+    "brand": "Hearth",
+    "price": 45,
+    "currency": "USD",
+    "sizes": [
+      "OS"
+    ],
+    "in_stock": true,
+    "image_url": "https://images.unsplash.com/photo-1520903920245-00d872fea73d?auto=format&fit=crop&w=800&q=80",
+    "gender": "unisex"
+  },
+  {
+    "id": "mkt-soldout-01",
+    "name": "Grey Street Hoodie",
+    "category": "tops",
+    "subcategory": "hoodie",
+    "colors": {
+      "primary": "grey"
+    },
+    "formality": "casual",
+    "style_tags": [
+      "street"
+    ],
+    "seasons": [
+      "fall",
+      "winter"
+    ],
+    "temperature_range_c": {
+      "min_c": 0,
+      "max_c": 18
+    },
+    "availability": "sold_out",
+    "brand": "North",
+    "price": 60,
+    "currency": "USD",
+    "sizes": [
+      "M",
+      "L"
+    ],
+    "in_stock": false,
+    "image_url": "https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&fit=crop&w=800&q=80",
+    "gender": "unisex"
+  },
+  {
+    "id": "mkt-expensive-01",
+    "name": "Black Evening Coat",
+    "category": "outerwear",
+    "subcategory": "coat",
+    "colors": {
+      "primary": "black"
+    },
+    "formality": "formal",
+    "style_tags": [
+      "elegant"
+    ],
+    "seasons": [
+      "winter"
+    ],
+    "temperature_range_c": {
+      "min_c": -10,
+      "max_c": 10
+    },
+    "availability": "available",
+    "brand": "Atelier",
+    "price": 480,
+    "currency": "USD",
+    "sizes": [
+      "M",
+      "L"
+    ],
+    "in_stock": true,
+    "image_url": "https://images.unsplash.com/photo-1544923246-77307dd628ce?auto=format&fit=crop&w=800&q=80",
+    "gender": "unisex"
+  }
+]

@@ -1,0 +1,19 @@
+{
+  "model_version": "muse-ranker-v1",
+  "n_eval_pairs": 520,
+  "pairwise_accuracy_learned": 0.8865,
+  "pairwise_accuracy_baseline": 0.725,
+  "lift": 0.1615,
+  "train_metrics": {
+    "n_train": 4563,
+    "n_test": 1141,
+    "accuracy": 0.7905,
+    "roc_auc": 0.8657,
+    "positive_rate_test": 0.3593
+  },
+  "notes": [
+    "Pairwise accuracy: fraction of preference pairs where the preferred outfit scores higher.",
+    "Baseline uses Muse's published hand weights on the seven content features.",
+    "Learned model is the exported MLP from train_ranker.py."
+  ]
+}

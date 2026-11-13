@@ -17,7 +17,12 @@ Muse copies garment ids and context from the stored recommendation. The client d
 
 `user_id` and `timestamp` are optional. When `user_id` is sent it must match the recommendation. When `timestamp` is omitted, the server clock is stored.
 
-`action` is one of `like`, `save`, `dislike`, `dismiss`, `worn`.
+`action` is one of `like`, `save`, `dislike`, `dismiss`, `worn`, `purchase`.
+
+Optional marketplace fields for future checkout wiring:
+
+- `source`: `wardrobe` (default) or `marketplace`
+- `product_ids`: string ids of catalog/marketplace products tied to the event
 
 Stored record:
 
@@ -30,8 +35,11 @@ Stored record:
 | `context` | Occasion, season, and weather stored with the recommendation. |
 | `action` | The action above. |
 | `reason` | `{ code, note }` or null. Unknown reasons stay null in effect: only `color`, `formality`, `weather`, `style`, and `comfort` count as a specific dislike. |
+| `source` | `wardrobe` or `marketplace`. |
+| `product_ids` | Marketplace product ids when provided, otherwise null. |
+| `features` | Content-feature snapshot copied from the recommendation for LinUCB updates. |
 | `timestamp` | ISO-8601. |
-| `model_version` | `muse-v1` from the recommendation. |
+| `model_version` | From the recommendation (`muse-ranker-v1` or `muse-ranker-v1+linucb`). |
 
 | HTTP | `error` | When |
 | --- | --- | --- |

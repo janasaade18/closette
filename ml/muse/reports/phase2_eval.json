@@ -1,0 +1,38 @@
+{
+  "model_version": "muse-ranker-v1+linucb",
+  "phase1_model_version": "muse-ranker-v1",
+  "n_users": 48,
+  "users_ready": 48,
+  "n_eval_pairs": 768,
+  "feedback_per_user": 12,
+  "personalization_blend": 0.28,
+  "pairwise_accuracy_phase1_learned": 0.957,
+  "pairwise_accuracy_linucb_only": 0.9766,
+  "pairwise_accuracy_phase2_personalized": 0.974,
+  "lift_vs_phase1": 0.0169,
+  "near_tie_pairs": 81,
+  "near_tie_accuracy_phase1": 0.7778,
+  "near_tie_accuracy_phase2": 0.9383,
+  "actions_supported": [
+    "like",
+    "save",
+    "dislike",
+    "dismiss",
+    "worn",
+    "purchase"
+  ],
+  "marketplace_ready": {
+    "purchase_action": true,
+    "source_field": [
+      "wardrobe",
+      "marketplace"
+    ],
+    "product_ids_field": true
+  },
+  "notes": [
+    "Ground truth is each synthetic user's latent taste over Muse content features.",
+    "Phase 1 is the exported MLP alone (global style prior, not user-specific).",
+    "Phase 2 blends MLP with a per-user LinUCB fit on likes/saves/wears/purchases/dismissals/dislikes.",
+    "Near-tie rows are pairs where |MLP(winner)-MLP(loser)| < 0.08."
+  ]
+}

@@ -4,8 +4,11 @@
  * A formal or work occasion can still add a tailored outer layer.
  */
 export function suggestsCoolLayer(context, config) {
+  const condition = context.weather?.condition;
+  if (condition === "rain" || condition === "snow" || condition === "cold") return true;
   const temp = context.weather?.temperature_c;
-  if (typeof temp === "number") return temp < config.coldTempC;
+  // Include the cold threshold itself (18°C) so cool / rainy days still want a layer.
+  if (typeof temp === "number") return temp <= (config.coldTempC ?? 18);
   return Boolean(context.season && config.coolSeasons.includes(context.season));
 }
 

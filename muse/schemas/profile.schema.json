@@ -5,6 +5,11 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "gender": {
+      "type": "string",
+      "minLength": 1,
+      "description": "User gender presentation for marketplace / style filtering (male, female, unisex, etc.)."
+    },
     "preferred_styles": { "type": "array", "items": { "type": "string", "minLength": 1 } },
     "favorite_colors": { "type": "array", "items": { "type": "string", "minLength": 1 } },
     "disliked_colors": { "type": "array", "items": { "type": "string", "minLength": 1 } },

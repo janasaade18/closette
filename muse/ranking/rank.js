@@ -1,7 +1,10 @@
 import { COLOR_FAMILIES, NEUTRAL_COLORS, SPECIFIC_DISLIKE_REASONS } from "../schemas/constants.js";
 import { formalityAffinity } from "./affinity.js";
 import { layerContextActive, suggestsCoolLayer } from "../candidate_generation/layers.js";
+import { marketplaceAffinity } from "../marketplace/affinity.js";
+import { personalizeScore } from "../personalization/fit.js";
 import { average, clamp01, round4 } from "../util.js";
+import { buildLearnedVector, scoreLearnedVector } from "./learned.js";
 
 export function pairHarmony(left, right) {
   if (left === right) return 0.85;
@@ -120,8 +123,8 @@ function feedbackSignal(outfit, events, config) {
     evidence = true;
     const specific = event.reason && SPECIFIC_DISLIKE_REASONS.has(event.reason.code);
     let delta = -0.15;
-    if (event.action === "like" || event.action === "save") {
-      delta = 1;
+    if (event.action === "like" || event.action === "save" || event.action === "purchase") {
+      delta = event.action === "purchase" ? 1.6 : 1;
       positive += 1;
     } else if (event.action === "worn") {
       delta = 1.5;
@@ -169,11 +172,11 @@ function reasonsFor(features, feedback, context, config) {
   }
   if (weighted("weather_suitability")) add("weather", "Fits the available weather information");
   if (weighted("context_layer")) {
-    if (suggestsCoolLayer(context, config)) add("context_layer", "Adds a layer for the cooler conditions");
+    if (suggestsCoolLayer(context, config)) add("context_layer", "Layered for cooler weather");
     else add("context_layer", "Adds a tailored layer for the occasion");
   }
   if (feedback.positive && feedback.value != null && feedback.value >= threshold && config.feedbackAdjustmentWeight > 0) {
-    add("feedback", "Agrees with outfits you have liked, saved, or worn");
+    add("feedback", "Agrees with outfits you have liked, saved, worn, or purchased");
   }
   if (!reasons.length) {
     add("wardrobe", "Built from pieces in your wardrobe that passed the outfit rules");
@@ -181,7 +184,32 @@ function reasonsFor(features, feedback, context, config) {
   return { reasons, reason_codes: codes };
 }
 
-export function scoreOutfit(outfit, context, profile, events, config) {
+function attachMarketplaceReason(explanation, outfit) {
+  if (!(outfit.marketplace_ids ?? []).length) return explanation;
+  explanation.reasons = [
+    "Completed with a marketplace piece",
+    ...explanation.reasons.filter((reason) => !/marketplace|shop/i.test(reason)),
+  ].slice(0, 3);
+  if (!explanation.reason_codes.includes("marketplace")) {
+    explanation.reason_codes = ["marketplace", ...explanation.reason_codes].slice(0, 4);
+  }
+  return explanation;
+}
+
+function formalitySpreadPenalty(outfit, context) {
+  const affinities = (outfit.items ?? [])
+    .map((item) => formalityAffinity(context.occasion, item.formality))
+    .filter((value) => typeof value === "number");
+  if (affinities.length < 2) return 0;
+  const min = Math.min(...affinities);
+  const max = Math.max(...affinities);
+  const spread = max - min;
+  if (spread >= 0.7) return 0.22;
+  if (spread >= 0.45) return 0.12;
+  return 0;
+}
+
+export function scoreOutfit(outfit, context, profile, events, config, learnedModel = null, userModel = null) {
   const features = contentFeatures(outfit, context, profile, config);
   const feedback = feedbackSignal(outfit, events, config);
   let weightSum = 0;
@@ -193,26 +221,125 @@ export function scoreOutfit(outfit, context, profile, events, config) {
     valueSum += config.weights[name] * value;
     signalsUsed.push(name);
   }
-  let score = weightSum === 0 ? config.uninformedScore : valueSum / weightSum;
-  if (feedback.value != null && config.feedbackAdjustmentWeight > 0) {
-    score += config.feedbackAdjustmentWeight * (feedback.value - 0.5);
+  let baselineScore = weightSum === 0 ? config.uninformedScore : valueSum / weightSum;
+  const linucbReady = Boolean(userModel?.ready && config.personalization === "linucb");
+  // Heuristic affinity stays on when LinUCB is off or not ready yet.
+  if (!linucbReady && feedback.value != null && config.feedbackAdjustmentWeight > 0) {
+    baselineScore += config.feedbackAdjustmentWeight * (feedback.value - 0.5);
     signalsUsed.push("feedback_affinity");
   }
-  score = round4(clamp01(score));
-  const explanation = reasonsFor(features, feedback, context, config);
+  baselineScore = round4(clamp01(baselineScore));
+
+  let score = baselineScore;
+  let rankingMethod = "baseline_weighted_features";
+  let learnedApplied = false;
+  if (learnedModel && config.rankingPolicy === "learned") {
+    const vector = buildLearnedVector(features, context, outfit);
+    score = scoreLearnedVector(learnedModel, vector);
+    signalsUsed.push("learned_ranker");
+    rankingMethod = "learned_mlp_ranker";
+    learnedApplied = true;
+  }
+
+  let personalizationApplied = false;
+  if (linucbReady) {
+    const personalized = personalizeScore(score, features, userModel, config);
+    score = round4(clamp01(personalized.score));
+    if (personalized.applied) {
+      personalizationApplied = true;
+      signalsUsed.push("linucb_personalization");
+      rankingMethod = learnedApplied
+        ? "learned_mlp_plus_linucb"
+        : "baseline_plus_linucb";
+    }
+  }
+
+  const market = marketplaceAffinity(outfit, events, config);
+  if (market.value != null && (config.marketplaceAffinityWeight ?? 0.08) > 0) {
+    score = round4(clamp01(score + (config.marketplaceAffinityWeight ?? 0.08) * (market.value - 0.5)));
+    signalsUsed.push("marketplace_affinity");
+  }
+
+  // Keep coats/jackets ahead of bare summer cores when the day is cold, even if the MLP is flat.
+  const temp = context.weather?.temperature_c;
+  if (suggestsCoolLayer(context, config) && outfit.roles?.outerwear) {
+    score = round4(clamp01(score + 0.12));
+    signalsUsed.push("cold_layer_boost");
+    const outer = outfit.items?.find((item) => item.role === "outerwear");
+    if (
+      context.weather?.condition === "rain" &&
+      outer &&
+      (outer.subcategory === "raincoat" || outer.subcategory === "jacket")
+    ) {
+      score = round4(clamp01(score + 0.08));
+      signalsUsed.push("rain_layer_boost");
+    }
+  } else if (typeof temp === "number" && temp >= 26 && outfit.roles?.outerwear) {
+    const outer = outfit.items?.find((item) => item.role === "outerwear");
+    if (outer && (outer.subcategory === "coat" || outer.subcategory === "trench-coat")) {
+      score = round4(clamp01(score - 0.15));
+      signalsUsed.push("hot_layer_penalty");
+    }
+  }
+
+  const formalityPenalty = formalitySpreadPenalty(outfit, context);
+  if (formalityPenalty > 0) {
+    score = round4(clamp01(score - formalityPenalty));
+    signalsUsed.push("formality_cohesion");
+  }
+
+  // Short sleeves alone at <=18° / rain look unfinished — push jackets ahead hard.
+  if (suggestsCoolLayer(context, config) && !outfit.roles?.outerwear) {
+    const top = outfit.items?.find((item) => item.role === "top" || item.role === "one_piece");
+    const shortSleeve = ["t-shirt", "tank-top", "polo"].includes(top?.subcategory);
+    score = round4(clamp01(score - (shortSleeve ? 0.28 : 0.16)));
+    signalsUsed.push("missing_cool_layer");
+  }
+
+  let explanation = reasonsFor(features, feedback, context, config);
+  if (learnedApplied) {
+    explanation.reasons = [
+      "Ranked by Closette's learned Muse outfit model",
+      ...explanation.reasons.filter((reason) => reason !== "Built from pieces in your wardrobe that passed the outfit rules"),
+    ].slice(0, 3);
+    if (!explanation.reason_codes.includes("learned_ranker")) {
+      explanation.reason_codes = ["learned_ranker", ...explanation.reason_codes].slice(0, 4);
+    }
+  }
+  if (personalizationApplied) {
+    explanation.reasons = [
+      "Personalized from your likes, saves, wears, dismissals, and purchases",
+      ...explanation.reasons,
+    ].slice(0, 3);
+    if (!explanation.reason_codes.includes("linucb")) {
+      explanation.reason_codes = ["linucb", ...explanation.reason_codes].slice(0, 4);
+    }
+  }
+  explanation = attachMarketplaceReason(explanation, outfit);
+
   return {
     ...outfit,
     score,
-    features: { ...features, feedback_affinity: feedback.value },
+    baseline_score: baselineScore,
+    features: {
+      ...features,
+      feedback_affinity: feedback.value,
+      marketplace_affinity: market.value,
+    },
     signals_used: signalsUsed,
-    feedback_applied: feedback.value != null,
+    feedback_applied: feedback.value != null || personalizationApplied || market.value != null,
+    learned_applied: learnedApplied,
+    personalization_applied: personalizationApplied,
+    ranking_method: rankingMethod,
     reasons: explanation.reasons,
     reason_codes: explanation.reason_codes,
   };
 }
 
-export function rankOutfits(candidates, context, profile, events, config) {
-  const ranked = candidates.map((candidate) => scoreOutfit(candidate, context, profile, events, config));
+export function rankOutfits(candidates, context, profile, events, config, learnedModel = null, userModel = null) {
+  const ranked = candidates.map((candidate) =>
+    scoreOutfit(candidate, context, profile, events, config, learnedModel, userModel),
+  );
   ranked.sort((a, b) => b.score - a.score || a.outfitId.localeCompare(b.outfitId));
   return ranked;
 }

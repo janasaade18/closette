@@ -13,6 +13,6 @@ The fit is a shared linear model:
 - Each request scores the candidates that already survived the hard rules.
 - The reward comes from feedback: like and save are positive, worn is a stronger positive, a dislike with a specific reason is negative, and a dismissal or a dislike without a specific reason is a small negative.
 
-`SharedLinUCB` in `personalization/linucb.js` is that update rule. It is not called by `POST /v1/outfits/recommend`.
+`SharedLinUCB` in `personalization/linucb.js` is that update rule. Phase 2 fits one instance per user from logged feedback and blends it with the learned ranker (`personalization/fit.js`). Purchase events are included for future marketplace interactions.
 
-Before it can replace or sit beside the fixed weights, Muse needs an offline check on logged recommendations. The log stores the feature vector of every eligible outfit for a request. V1 does not log a propensity, because the baseline does not explore. An offline bandit evaluation without propensities is biased. That is another reason to leave the module unwired.
+Offline checks live in `ml/muse/evaluate_personalization.py`. Exploration stays off by default (`linucb_explore: false`) so Nest sees deterministic rankings; the uncertainty bonus remains available when we want logged propensities later.

@@ -1,0 +1,23 @@
+{
+  "model_version": "muse-travel-v1",
+  "phase": 4,
+  "n_trials": 120,
+  "mean_unique_items_greedy_top1": 9.5417,
+  "mean_unique_items_with_rotation": 11.4333,
+  "core_repeat_rate_greedy": 0.0167,
+  "core_repeat_rate_rotated": 0.0,
+  "luggage_fit_rate_max_10": 1.0,
+  "stack": [
+    "mlp",
+    "linucb",
+    "marketplace_retrieval",
+    "rotation",
+    "luggage"
+  ],
+  "uses_rag": false,
+  "uses_qwen_qlora": false,
+  "notes": [
+    "Travel packing reuses Muse recommend() per day; Phase 4 adds rotation + luggage optimization.",
+    "Existing POST /v1/outfits/recommend behavior is unchanged."
+  ]
+}

@@ -21,6 +21,22 @@
     "wardrobe_item_ids": { "type": "array", "items": { "type": "string", "minLength": 1 } },
     "profile": { "$ref": "profile.schema.json" },
     "preferences_override": { "$ref": "profile.schema.json" },
-    "personalization": { "const": "baseline" }
+    "personalization": { "enum": ["baseline", "linucb"] },
+    "marketplace": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "budget_max": { "type": "number", "minimum": 0 },
+        "budget_min": { "type": "number", "minimum": 0 },
+        "sizes": { "type": "array", "items": { "type": "string" } },
+        "categories": { "type": "array", "items": { "type": "string" } },
+        "include_mixed": { "type": "boolean" },
+        "max_products": { "type": "integer", "minimum": 1, "maximum": 100 }
+      }
+    },
+    "marketplace_products": {
+      "type": "array",
+      "items": { "$ref": "garment.schema.json" }
+    }
   }
 }

@@ -1,4 +1,4 @@
-import { SEASONS, normSeason, normToken } from "./constants.js";
+import { FEEDBACK_ACTIONS, FEEDBACK_SOURCES, SEASONS, normSeason, normToken } from "./constants.js";
 import { apiError } from "../util.js";
 
 const REQUEST_FIELDS = new Set([
@@ -12,6 +12,8 @@ const REQUEST_FIELDS = new Set([
   "profile",
   "preferences_override",
   "personalization",
+  "marketplace",
+  "marketplace_products",
 ]);
 
 const PROFILE_FIELDS = [
@@ -24,6 +26,8 @@ const PROFILE_FIELDS = [
   "avoid_subcategories",
   "avoid_categories",
 ];
+
+const PROFILE_STRING_FIELDS = ["gender"];
 
 function isObject(value) {
   return value != null && typeof value === "object" && !Array.isArray(value);
@@ -57,6 +61,15 @@ function readProfile(value, field, errors) {
     return undefined;
   }
   const profile = {};
+  for (const key of PROFILE_STRING_FIELDS) {
+    if (value[key] != null) {
+      if (typeof value[key] !== "string" || !value[key].trim()) {
+        errors[`${field}.${key}`] = "must be a non-empty string";
+      } else {
+        profile[key] = value[key].trim().toLowerCase();
+      }
+    }
+  }
   for (const key of PROFILE_FIELDS) {
     if (value[key] != null) {
       profile[key] = readStringArray(value[key], `${field}.${key}`, errors, {
@@ -116,12 +129,12 @@ export function validateRecommendRequest(body, config) {
   }
   const errors = {};
   const unknown = Object.keys(body).filter((key) => !REQUEST_FIELDS.has(key));
-  if (body.personalization != null && body.personalization !== "baseline") {
+  if (body.personalization != null && body.personalization !== "baseline" && body.personalization !== "linucb") {
     return {
       error: apiError(
         400,
         "personalization_not_available",
-        "The request path uses the baseline ranker. LinUCB is not enabled.",
+        "personalization must be baseline or linucb.",
       ),
     };
   }
@@ -177,6 +190,53 @@ export function validateRecommendRequest(body, config) {
   }
   const profile = readProfile(body.profile, "profile", errors);
   const preferences = readProfile(body.preferences_override, "preferences_override", errors);
+
+  let marketplace = null;
+  if (body.marketplace != null) {
+    if (!isObject(body.marketplace)) {
+      errors.marketplace = "must be an object";
+    } else {
+      const block = body.marketplace;
+      if (block.enabled != null && typeof block.enabled !== "boolean") {
+        errors["marketplace.enabled"] = "must be a boolean";
+      }
+      if (block.budget_max != null && (!finiteNumber(block.budget_max) || block.budget_max < 0)) {
+        errors["marketplace.budget_max"] = "must be a non-negative number";
+      }
+      if (block.budget_min != null && (!finiteNumber(block.budget_min) || block.budget_min < 0)) {
+        errors["marketplace.budget_min"] = "must be a non-negative number";
+      }
+      if (
+        finiteNumber(block.budget_min) &&
+        finiteNumber(block.budget_max) &&
+        block.budget_min > block.budget_max
+      ) {
+        errors["marketplace.budget_min"] = "cannot exceed budget_max";
+      }
+      if (block.include_mixed != null && typeof block.include_mixed !== "boolean") {
+        errors["marketplace.include_mixed"] = "must be a boolean";
+      }
+      if (block.max_products != null && (!Number.isInteger(block.max_products) || block.max_products < 1 || block.max_products > 100)) {
+        errors["marketplace.max_products"] = "must be an integer from 1 to 100";
+      }
+      const sizes = readStringArray(block.sizes, "marketplace.sizes", errors, { allowEmpty: true });
+      const categories = readStringArray(block.categories, "marketplace.categories", errors, { allowEmpty: true });
+      marketplace = {
+        enabled: block.enabled !== false,
+        budgetMax: block.budget_max ?? null,
+        budgetMin: block.budget_min ?? null,
+        sizes: sizes ?? [],
+        categories: categories ?? [],
+        includeMixed: block.include_mixed !== false,
+        maxProducts: block.max_products ?? null,
+      };
+    }
+  }
+
+  if (body.marketplace_products != null && !Array.isArray(body.marketplace_products)) {
+    errors.marketplace_products = "must be an array";
+  }
+
   if (Object.keys(errors).length) {
     return { error: apiError(400, "invalid_request", "The recommendation request is invalid.", errors) };
   }
@@ -191,6 +251,7 @@ export function validateRecommendRequest(body, config) {
     value: {
       userId: body.user_id.trim(),
       limit,
+      personalization: body.personalization ?? null,
       context: {
         occasion: body.occasion ? normToken(body.occasion) : null,
         season: body.season ? normSeason(body.season) : null,
@@ -200,6 +261,8 @@ export function validateRecommendRequest(body, config) {
       wardrobeItemIds: wardrobeIds ?? null,
       profile: profile ?? {},
       preferencesOverride: preferences ?? {},
+      marketplace,
+      marketplaceProducts: Array.isArray(body.marketplace_products) ? body.marketplace_products : null,
       unknownFields: unknown,
     },
   };
@@ -216,15 +279,28 @@ export function validateFeedbackRequest(body) {
   if (typeof body.outfit_id !== "string" || !body.outfit_id.trim()) {
     errors.outfit_id = "must be a non-empty string";
   }
-  const actions = ["like", "save", "dislike", "dismiss", "worn"];
-  if (!actions.includes(body.action)) {
-    errors.action = `must be one of ${actions.join(", ")}`;
+  if (!FEEDBACK_ACTIONS.includes(body.action)) {
+    errors.action = `must be one of ${FEEDBACK_ACTIONS.join(", ")}`;
   }
   if (body.user_id != null && (typeof body.user_id !== "string" || !body.user_id.trim())) {
     errors.user_id = "must be a non-empty string";
   }
   if (body.timestamp != null && (typeof body.timestamp !== "string" || Number.isNaN(Date.parse(body.timestamp)))) {
     errors.timestamp = "must be an ISO-8601 timestamp";
+  }
+  if (body.source != null && !FEEDBACK_SOURCES.includes(body.source)) {
+    errors.source = "must be wardrobe or marketplace";
+  }
+  if (body.product_ids != null) {
+    if (!Array.isArray(body.product_ids)) {
+      errors.product_ids = "must be an array of strings";
+    } else {
+      body.product_ids.forEach((id, index) => {
+        if (typeof id !== "string" || !id.trim()) {
+          errors[`product_ids[${index}]`] = "must be a non-empty string";
+        }
+      });
+    }
   }
   if (body.reason != null) {
     if (!isObject(body.reason)) {
@@ -244,6 +320,10 @@ export function validateFeedbackRequest(body) {
       action: body.action,
       userId: body.user_id ? body.user_id.trim() : null,
       timestamp: body.timestamp ?? null,
+      source: body.source ?? "wardrobe",
+      productIds: Array.isArray(body.product_ids)
+        ? body.product_ids.map((id) => id.trim()).filter(Boolean)
+        : null,
       reason: body.reason
         ? {
             code: body.reason.code ? normToken(body.reason.code) : null,
