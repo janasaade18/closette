@@ -12,6 +12,8 @@ const REQUEST_FIELDS = new Set([
   "profile",
   "preferences_override",
   "personalization",
+  "marketplace",
+  "marketplace_products",
 ]);
 
 const PROFILE_FIELDS = [
@@ -177,6 +179,53 @@ export function validateRecommendRequest(body, config) {
   }
   const profile = readProfile(body.profile, "profile", errors);
   const preferences = readProfile(body.preferences_override, "preferences_override", errors);
+
+  let marketplace = null;
+  if (body.marketplace != null) {
+    if (!isObject(body.marketplace)) {
+      errors.marketplace = "must be an object";
+    } else {
+      const block = body.marketplace;
+      if (block.enabled != null && typeof block.enabled !== "boolean") {
+        errors["marketplace.enabled"] = "must be a boolean";
+      }
+      if (block.budget_max != null && (!finiteNumber(block.budget_max) || block.budget_max < 0)) {
+        errors["marketplace.budget_max"] = "must be a non-negative number";
+      }
+      if (block.budget_min != null && (!finiteNumber(block.budget_min) || block.budget_min < 0)) {
+        errors["marketplace.budget_min"] = "must be a non-negative number";
+      }
+      if (
+        finiteNumber(block.budget_min) &&
+        finiteNumber(block.budget_max) &&
+        block.budget_min > block.budget_max
+      ) {
+        errors["marketplace.budget_min"] = "cannot exceed budget_max";
+      }
+      if (block.include_mixed != null && typeof block.include_mixed !== "boolean") {
+        errors["marketplace.include_mixed"] = "must be a boolean";
+      }
+      if (block.max_products != null && (!Number.isInteger(block.max_products) || block.max_products < 1 || block.max_products > 100)) {
+        errors["marketplace.max_products"] = "must be an integer from 1 to 100";
+      }
+      const sizes = readStringArray(block.sizes, "marketplace.sizes", errors, { allowEmpty: true });
+      const categories = readStringArray(block.categories, "marketplace.categories", errors, { allowEmpty: true });
+      marketplace = {
+        enabled: block.enabled !== false,
+        budgetMax: block.budget_max ?? null,
+        budgetMin: block.budget_min ?? null,
+        sizes: sizes ?? [],
+        categories: categories ?? [],
+        includeMixed: block.include_mixed !== false,
+        maxProducts: block.max_products ?? null,
+      };
+    }
+  }
+
+  if (body.marketplace_products != null && !Array.isArray(body.marketplace_products)) {
+    errors.marketplace_products = "must be an array";
+  }
+
   if (Object.keys(errors).length) {
     return { error: apiError(400, "invalid_request", "The recommendation request is invalid.", errors) };
   }
@@ -201,6 +250,8 @@ export function validateRecommendRequest(body, config) {
       wardrobeItemIds: wardrobeIds ?? null,
       profile: profile ?? {},
       preferencesOverride: preferences ?? {},
+      marketplace,
+      marketplaceProducts: Array.isArray(body.marketplace_products) ? body.marketplace_products : null,
       unknownFields: unknown,
     },
   };

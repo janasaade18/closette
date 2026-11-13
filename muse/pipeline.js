@@ -7,8 +7,18 @@ import { generateCandidates } from "./candidate_generation/generate.js";
 import { rankOutfits, selectDiverse } from "./ranking/rank.js";
 import { defaultLearnedWeightsPath, loadLearnedModel } from "./ranking/learned.js";
 import { fitUserLinUCB } from "./personalization/fit.js";
+import {
+  defaultMarketplaceFixturePath,
+  loadMarketplaceCatalog,
+  MemoryMarketplaceCatalog,
+} from "./marketplace/catalog.js";
+import { filterMarketplaceProducts } from "./marketplace/constraints.js";
+import { generateMixedCandidates, publicMarketplaceItems, summarizeMarketplaceUsage } from "./marketplace/mix.js";
+import { retrieveComplements } from "./marketplace/retrieve.js";
 import { recommendationIdFor } from "./ids.js";
 import { SCORE_NOTE, SCORE_SEMANTICS, apiError } from "./util.js";
+
+export { MemoryMarketplaceCatalog };
 
 export class MemoryCatalog {
   constructor(byUser) {
@@ -59,10 +69,13 @@ function snapshot(outfit) {
     score: outfit.score,
     features: outfit.features,
     reasons: [...outfit.reasons],
+    marketplace_ids: [...(outfit.marketplace_ids ?? [])],
+    mixed: Boolean(outfit.mixed),
   };
 }
 
 function publicOutfit(outfit, modelVersion) {
+  const marketplaceItems = publicMarketplaceItems(outfit);
   return {
     outfit_id: outfit.outfitId,
     items: [...outfit.itemIds],
@@ -72,7 +85,23 @@ function publicOutfit(outfit, modelVersion) {
     reason_codes: [...outfit.reason_codes],
     signals_used: [...outfit.signals_used],
     model_version: modelVersion,
+    mixed: Boolean(outfit.mixed || marketplaceItems.length),
+    marketplace_items: marketplaceItems,
   };
+}
+
+function resolveMarketplaceCatalog(value, deps, config) {
+  if (Array.isArray(value.marketplaceProducts)) {
+    return new MemoryMarketplaceCatalog(value.marketplaceProducts);
+  }
+  if (deps.marketplaceCatalog) return deps.marketplaceCatalog;
+  if (!config.marketplaceEnabled && !(value.marketplace?.enabled)) return null;
+  const path = config.marketplaceCatalogPath ?? defaultMarketplaceFixturePath();
+  try {
+    return loadMarketplaceCatalog(path);
+  } catch {
+    return null;
+  }
 }
 
 function envelope(status, extra, modelVersion = MODEL_VERSION, scoreMeta = null) {
@@ -215,6 +244,11 @@ export function recommend(request, deps = {}) {
     : usePersonalization
       ? `${config.modelVersion}+linucb`
       : config.modelVersion;
+  const marketplaceOpts = value.marketplace;
+  const marketplaceOn =
+    marketplaceOpts?.enabled === true ||
+    (marketplaceOpts == null && config.marketplaceEnabled) ||
+    Array.isArray(value.marketplaceProducts);
   const rankingMeta = {
     method: useLearned
       ? usePersonalization
@@ -230,6 +264,11 @@ export function recommend(request, deps = {}) {
     feedback_events: history.length,
     feedback_min_events: config.feedbackMinEvents,
     feedback_applied: false,
+    marketplace_enabled: Boolean(marketplaceOn),
+    marketplace_products_considered: 0,
+    marketplace_products_used: 0,
+    marketplace_mixed_outfits: 0,
+    marketplace_rejected: 0,
   };
 
   const scoreMeta = useLearned ? LEARNED_SCORE_META : null;
@@ -248,24 +287,83 @@ export function recommend(request, deps = {}) {
 
   const normalized = resolved.items.map((raw) => normalizeGarment(raw));
   const { eligible, excluded } = partitionItems(normalized, value.context, profile, config);
-  const generated = generateCandidates(eligible, value.context, profile, config);
+
+  let generated;
+  let marketplaceRejected = [];
+  if (marketplaceOn) {
+    const catalog = resolveMarketplaceCatalog(value, deps, config);
+    const rawProducts = catalog ? catalog.list() : [];
+    const constraints = {
+      budgetMax: marketplaceOpts?.budgetMax ?? null,
+      budgetMin: marketplaceOpts?.budgetMin ?? null,
+      sizes: marketplaceOpts?.sizes ?? [],
+      categories: marketplaceOpts?.categories ?? [],
+      requireInStock: true,
+    };
+    const filtered = filterMarketplaceProducts(rawProducts, constraints, value.context, config);
+    marketplaceRejected = filtered.rejected;
+    const limit = marketplaceOpts?.maxProducts ?? config.marketplaceMaxProducts ?? 24;
+    const retrieved = retrieveComplements(filtered.accepted, eligible, value.context, constraints, limit);
+    const products = retrieved.map((row) => row.product);
+    rankingMeta.marketplace_products_considered = products.length;
+    rankingMeta.marketplace_rejected = marketplaceRejected.length;
+
+    const includeMixed = marketplaceOpts?.includeMixed !== false;
+    if (includeMixed && products.length) {
+      const mixConfig = {
+        ...config,
+        marketplaceEnabled: true,
+        marketplaceMaxItemsPerOutfit: config.marketplaceMaxItemsPerOutfit,
+        marketplaceMaxMixedCandidates: config.marketplaceMaxMixedCandidates,
+      };
+      generated = generateMixedCandidates(eligible, products, value.context, profile, mixConfig).all;
+    } else {
+      generated = generateMixedCandidates(eligible, [], value.context, profile, config).wardrobeOnly;
+    }
+
+    if (!catalog && !value.marketplaceProducts) {
+      warnings.push({
+        code: "marketplace_catalog_unavailable",
+        message: "Marketplace mode was requested and no catalog was available.",
+      });
+    }
+  } else {
+    generated = generateCandidates(eligible, value.context, profile, config).map((outfit) => ({
+      ...outfit,
+      mixed: false,
+      marketplace_ids: [],
+    }));
+  }
+
   const candidates = generated.filter((outfit) => outfitViolations(outfit).length === 0);
   const ranked = rankOutfits(candidates, value.context, profile, history, config, learnedModel, userModel);
   const selected = selectDiverse(ranked, value.limit, config);
   rankingMeta.feedback_applied = selected.some((outfit) => outfit.feedback_applied);
   rankingMeta.personalization_applied = selected.some((outfit) => outfit.personalization_applied);
+  const usage = summarizeMarketplaceUsage(selected);
+  rankingMeta.marketplace_products_used = usage.product_ids.length;
+  rankingMeta.marketplace_mixed_outfits = usage.mixed_outfits;
+  if (usage.product_ids.length && useLearned) {
+    rankingMeta.method = usePersonalization
+      ? "learned_mlp_plus_linucb_marketplace"
+      : "learned_mlp_marketplace";
+  }
 
   const shownIds = selected.map((outfit) => outfit.outfitId);
   const recommendationId = recommendationIdFor(value.userId, value.context, shownIds);
   const status = selected.length ? "ok" : "insufficient_candidates";
+  const mixedSelected = usage.mixed_outfits > 0;
   const body = {
     recommendation_id: recommendationId,
     recommendations: selected.map((outfit) => publicOutfit(outfit, effectiveModelVersion)),
     ranking: rankingMeta,
     warnings,
     excluded_items: excluded,
+    marketplace_excluded: marketplaceRejected.slice(0, 20),
     message: selected.length
-      ? "Recommendations use only garments from the supplied wardrobe."
+      ? mixedSelected
+        ? "Recommendations may mix wardrobe pieces with marketplace products that passed constraints."
+        : "Recommendations use garments from the supplied wardrobe."
       : "Garments were found, and none formed an outfit that passed the rules.",
   };
 
@@ -278,6 +376,7 @@ export function recommend(request, deps = {}) {
       model_version: effectiveModelVersion,
       ranking_method: rankingMeta.method,
       learned_model: useLearned,
+      marketplace_product_ids: usage.product_ids,
       shown: selected.map(snapshot),
       eligible_not_shown: ranked.filter((outfit) => !shown.has(outfit.outfitId)).map(snapshot),
     });

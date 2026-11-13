@@ -1,6 +1,7 @@
 import { COLOR_FAMILIES, NEUTRAL_COLORS, SPECIFIC_DISLIKE_REASONS } from "../schemas/constants.js";
 import { formalityAffinity } from "./affinity.js";
 import { layerContextActive, suggestsCoolLayer } from "../candidate_generation/layers.js";
+import { marketplaceAffinity } from "../marketplace/affinity.js";
 import { personalizeScore } from "../personalization/fit.js";
 import { average, clamp01, round4 } from "../util.js";
 import { buildLearnedVector, scoreLearnedVector } from "./learned.js";
@@ -183,6 +184,18 @@ function reasonsFor(features, feedback, context, config) {
   return { reasons, reason_codes: codes };
 }
 
+function attachMarketplaceReason(explanation, outfit) {
+  if (!(outfit.marketplace_ids ?? []).length) return explanation;
+  explanation.reasons = [
+    "Includes a marketplace piece that complements your wardrobe",
+    ...explanation.reasons,
+  ].slice(0, 3);
+  if (!explanation.reason_codes.includes("marketplace")) {
+    explanation.reason_codes = ["marketplace", ...explanation.reason_codes].slice(0, 4);
+  }
+  return explanation;
+}
+
 export function scoreOutfit(outfit, context, profile, events, config, learnedModel = null, userModel = null) {
   const features = contentFeatures(outfit, context, profile, config);
   const feedback = feedbackSignal(outfit, events, config);
@@ -228,7 +241,13 @@ export function scoreOutfit(outfit, context, profile, events, config, learnedMod
     }
   }
 
-  const explanation = reasonsFor(features, feedback, context, config);
+  const market = marketplaceAffinity(outfit, events, config);
+  if (market.value != null && (config.marketplaceAffinityWeight ?? 0.08) > 0) {
+    score = round4(clamp01(score + (config.marketplaceAffinityWeight ?? 0.08) * (market.value - 0.5)));
+    signalsUsed.push("marketplace_affinity");
+  }
+
+  let explanation = reasonsFor(features, feedback, context, config);
   if (learnedApplied) {
     explanation.reasons = [
       "Ranked by Closette's learned Muse outfit model",
@@ -247,14 +266,19 @@ export function scoreOutfit(outfit, context, profile, events, config, learnedMod
       explanation.reason_codes = ["linucb", ...explanation.reason_codes].slice(0, 4);
     }
   }
+  explanation = attachMarketplaceReason(explanation, outfit);
 
   return {
     ...outfit,
     score,
     baseline_score: baselineScore,
-    features: { ...features, feedback_affinity: feedback.value },
+    features: {
+      ...features,
+      feedback_affinity: feedback.value,
+      marketplace_affinity: market.value,
+    },
     signals_used: signalsUsed,
-    feedback_applied: feedback.value != null || personalizationApplied,
+    feedback_applied: feedback.value != null || personalizationApplied || market.value != null,
     learned_applied: learnedApplied,
     personalization_applied: personalizationApplied,
     ranking_method: rankingMethod,

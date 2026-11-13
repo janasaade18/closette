@@ -45,7 +45,7 @@ With `ranking_policy: "baseline"`, `score` is a weighted average of the signals 
 
 Hard rules are listed in `compatibility_rules/RULES.md` and configured in `compatibility_rules/config.json`. They do not encode color clashes or style taste.
 
-`ranking.learned_model` is true when the MLP is active. With enough feedback, Phase 2 fits per-user LinUCB (`personalization: "linucb"`) and blends it with the MLP. Feedback actions include `purchase` for future marketplace events. A dismissal without a specific reason is a weak signal. Set `personalization: "baseline"` to turn LinUCB off.
+`ranking.learned_model` is true when the MLP is active. With enough feedback, Phase 2 fits per-user LinUCB (`personalization: "linucb"`) and blends it with the MLP. Phase 3 can mix wardrobe pieces with marketplace products when `marketplace.enabled` is true (budget/size/availability/weather filters; structured retrieval—not RAG/Qwen). Feedback actions include `purchase` with optional `source: "marketplace"`. Set `personalization: "baseline"` to turn LinUCB off.
 
 ## Nest integration
 

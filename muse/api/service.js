@@ -19,6 +19,7 @@ export function contractBody() {
     score_semantics: "mlp_preference_score_in_0_1_with_optional_linucb",
     personalization: "linucb",
     learned_model: true,
+    marketplace: "opt_in_via_request_or_runtime",
     feedback_actions: ["like", "save", "dislike", "dismiss", "worn", "purchase"],
   };
 }
