@@ -6,6 +6,7 @@ import { SupabaseModule } from './supabase/supabase.module';
 import { GarmentsModule } from './garments/garments.module';
 import { ScansModule } from './scans/scans.module';
 import { ShoesModule } from './shoes/shoes.module';
+import { BrandsModule } from './brands/brands.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { ShoesModule } from './shoes/shoes.module';
     ScansModule,
     GarmentsModule,
     ShoesModule,
+    BrandsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
