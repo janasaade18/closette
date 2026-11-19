@@ -261,12 +261,24 @@ export function scoreOutfit(outfit, context, profile, events, config, learnedMod
   }
 
   // Keep coats/jackets ahead of bare summer cores when the day is cold, even if the MLP is flat.
+  // Matches weatherAdvice: <=8 → coat; rain → jacket/raincoat; never treat blazer as a cold layer.
   const temp = context.weather?.temperature_c;
   if (suggestsCoolLayer(context, config) && outfit.roles?.outerwear) {
     score = round4(clamp01(score + 0.12));
     signalsUsed.push("cold_layer_boost");
     const outer = outfit.items?.find((item) => item.role === "outerwear");
-    if (
+    if (outer?.subcategory === "blazer") {
+      score = round4(clamp01(score - 0.14));
+      signalsUsed.push("blazer_cold_penalty");
+    } else if (typeof temp === "number" && temp <= 8 && outer) {
+      if (outer.subcategory === "coat" || outer.subcategory === "trench-coat") {
+        score = round4(clamp01(score + 0.1));
+        signalsUsed.push("cold_coat_boost");
+      } else if (outer.subcategory === "jacket" || outer.subcategory === "raincoat") {
+        score = round4(clamp01(score + 0.04));
+        signalsUsed.push("cold_jacket_boost");
+      }
+    } else if (
       context.weather?.condition === "rain" &&
       outer &&
       (outer.subcategory === "raincoat" || outer.subcategory === "jacket")

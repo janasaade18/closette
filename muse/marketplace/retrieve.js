@@ -89,9 +89,23 @@ function weatherLayerBoost(product, context) {
     condition === "cold" ||
     (typeof temp === "number" && temp <= 18);
   if (!cool || product.role !== "outerwear") return 0.55;
+  // Align with weatherAdvice / defaults: hard cold wants a coat; rain wants jacket/raincoat.
+  if (typeof temp === "number" && temp <= 8) {
+    if (product.subcategory === "coat" || product.subcategory === "trench-coat") return 1;
+    if (product.subcategory === "jacket" || product.subcategory === "raincoat") return 0.85;
+    if (product.subcategory === "blazer") return 0.15;
+    return 0.4;
+  }
+  if (condition === "rain") {
+    if (product.subcategory === "raincoat" || product.subcategory === "jacket") return 1;
+    if (product.subcategory === "trench-coat") return 0.7;
+    if (product.subcategory === "coat") return 0.55;
+    if (product.subcategory === "blazer") return 0.2;
+    return 0.4;
+  }
   if (product.subcategory === "raincoat" || product.subcategory === "jacket") return 1;
   if (product.subcategory === "coat" || product.subcategory === "trench-coat") return 0.75;
-  if (product.subcategory === "blazer" && condition === "rain") return 0.25;
+  if (product.subcategory === "blazer") return 0.25;
   return 0.55;
 }
 
