@@ -15,6 +15,15 @@ export const RULE = {
   unsuitableCondition: "unsuitable_condition",
   duplicateGarment: "duplicate_garment",
   explicitIncompatibility: "explicit_incompatibility",
+  formalityClash: "formality_clash",
+};
+
+const FORMALITY_RANK = {
+  athletic: 0,
+  casual: 1,
+  "smart-casual": 2,
+  work: 3,
+  formal: 4,
 };
 
 function pushOnce(reasons, rule) {
@@ -86,6 +95,34 @@ export function outfitViolations(outfit) {
       }
     }
   }
+
+  const ranked = outfit.items
+    .map((item) => ({ item, rank: FORMALITY_RANK[item.formality] }))
+    .filter((row) => row.rank != null);
+  for (let i = 0; i < ranked.length; i += 1) {
+    for (let j = i + 1; j < ranked.length; j += 1) {
+      if (Math.abs(ranked[i].rank - ranked[j].rank) > 1) {
+        pushOnce(reasons, RULE.formalityClash);
+      }
+    }
+  }
+
+  const top = outfit.items.find((item) => item.role === "top");
+  const bottom = outfit.items.find((item) => item.role === "bottom");
+  const outer = outfit.items.find((item) => item.role === "outerwear");
+  const casualTop = ["t-shirt", "hoodie", "sweatshirt", "tank-top"].includes(top?.subcategory);
+  const casualBottom = bottom?.subcategory === "jeans" || bottom?.formality === "casual";
+  if (
+    outer &&
+    casualTop &&
+    casualBottom &&
+    (outer.subcategory === "blazer" ||
+      outer.formality === "formal" ||
+      outer.formality === "work")
+  ) {
+    pushOnce(reasons, RULE.formalityClash);
+  }
+
   return reasons;
 }
 

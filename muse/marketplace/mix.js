@@ -1,8 +1,18 @@
 /**
- * Build mixed outfits: wardrobe pieces + marketplace products.
- * Candidate generation structures stay the same; only the item pool expands.
+ * Closet-first marketplace mix.
+ * Prefer complete wardrobe outfits. Marketplace only fills missing roles
+ * (or completes looks when the closet cannot), never replaces owned pieces.
  */
 import { generateCandidates, makeOutfit } from "../candidate_generation/generate.js";
+
+const FORMALITY_RANK = {
+  athletic: 0,
+  casual: 1,
+  "smart-casual": 2,
+  work: 3,
+  formal: 4,
+};
+
 function cloneOutfitMeta(outfit, marketplaceIds) {
   return {
     ...outfit,
@@ -22,26 +32,53 @@ function withMarketplaceFlags(outfits) {
   return outfits.map((outfit) => cloneOutfitMeta(outfit, marketplaceIdsOf(outfit)));
 }
 
+function coreFormalityBias(items) {
+  const core = items.filter((item) =>
+    ["top", "bottom", "one_piece", "footwear"].includes(item.role),
+  );
+  const ranks = core
+    .map((item) => FORMALITY_RANK[item.formality])
+    .filter((value) => value != null);
+  if (!ranks.length) return null;
+  return ranks.reduce((sum, value) => sum + value, 0) / ranks.length;
+}
+
+/** Marketplace piece must sit within one formality step of the closet core. */
+export function productFitsOutfitCore(base, product) {
+  if (!product?.role) return false;
+  const bias = coreFormalityBias(base.items ?? []);
+  const productRank = FORMALITY_RANK[product.formality];
+  if (bias != null && productRank != null && Math.abs(productRank - bias) > 1.01) {
+    return false;
+  }
+  const top = (base.items ?? []).find((item) => item.role === "top");
+  const bottom = (base.items ?? []).find((item) => item.role === "bottom");
+  const casualTop = ["t-shirt", "hoodie", "sweatshirt", "tank-top"].includes(top?.subcategory);
+  const casualBottom = bottom?.subcategory === "jeans" || bottom?.formality === "casual";
+  if (
+    product.role === "outerwear" &&
+    (product.subcategory === "blazer" || product.formality === "formal" || product.formality === "work") &&
+    casualTop &&
+    casualBottom
+  ) {
+    return false;
+  }
+  return true;
+}
+
+/** Fill a role the wardrobe outfit is missing — never replace an owned piece. */
+function fillMissingRole(base, product) {
+  if (!product.role || base.roles[product.role]) return null;
+  if (!productFitsOutfitCore(base, product)) return null;
+  const roleMap = {};
+  for (const item of base.items) roleMap[item.role] = item;
+  roleMap[product.role] = product;
+  return makeOutfit(roleMap);
+}
+
 /**
- * Replace one wardrobe role with a marketplace product, keeping other wardrobe roles.
+ * Build candidates: wardrobe-only first; marketplace only as gap-fill.
  */
-function substituteRole(base, product) {
-  if (!product.role || !base.roles[product.role]) return null;
-  const roleMap = {};
-  for (const item of base.items) roleMap[item.role] = item;
-  roleMap[product.role] = product;
-  return makeOutfit(roleMap);
-}
-
-function addOptionalRole(base, product) {
-  if (!product.role || (product.role !== "outerwear" && product.role !== "accessory")) return null;
-  if (base.roles[product.role]) return null;
-  const roleMap = {};
-  for (const item of base.items) roleMap[item.role] = item;
-  roleMap[product.role] = product;
-  return makeOutfit(roleMap);
-}
-
 export function generateMixedCandidates(wardrobeItems, marketplaceProducts, context, profile, config) {
   const wardrobeOnly = withMarketplaceFlags(generateCandidates(wardrobeItems, context, profile, config));
   if (!marketplaceProducts.length || config.marketplaceEnabled === false) {
@@ -50,13 +87,9 @@ export function generateMixedCandidates(wardrobeItems, marketplaceProducts, cont
 
   const maxPerOutfit = config.marketplaceMaxItemsPerOutfit ?? 1;
   const maxMixed = config.marketplaceMaxMixedCandidates ?? Math.min(120, config.maxCandidates);
-  const pool = [...wardrobeItems, ...marketplaceProducts];
-  const fromPool = withMarketplaceFlags(generateCandidates(pool, context, profile, config)).filter(
-    (outfit) => outfit.marketplace_ids.length > 0 && outfit.marketplace_ids.length <= maxPerOutfit,
-  );
-
   const mixed = [];
   const seen = new Set(wardrobeOnly.map((outfit) => outfit.outfitId));
+
   const push = (outfit) => {
     if (!outfit || seen.has(outfit.outfitId) || mixed.length >= maxMixed) return;
     const ids = marketplaceIdsOf(outfit);
@@ -65,28 +98,38 @@ export function generateMixedCandidates(wardrobeItems, marketplaceProducts, cont
     mixed.push(cloneOutfitMeta(outfit, ids));
   };
 
-  for (const outfit of fromPool) push(outfit);
-
-  // Targeted substitutes / optional adds on top wardrobe bases.
-  const bases = wardrobeOnly.slice(0, Math.min(40, wardrobeOnly.length));
-  for (const product of marketplaceProducts) {
-    for (const base of bases) {
-      if (mixed.length >= maxMixed) break;
-      push(substituteRole(base, product));
-      push(addOptionalRole(base, product));
+  // Closet can complete looks → only optional gap-fill (missing outerwear / accessory / etc.).
+  if (wardrobeOnly.length) {
+    const bases = wardrobeOnly.slice(0, Math.min(40, wardrobeOnly.length));
+    for (const product of marketplaceProducts) {
+      for (const base of bases) {
+        if (mixed.length >= maxMixed) break;
+        push(fillMissingRole(base, product));
+      }
+    }
+  } else {
+    // Closet cannot form a full outfit — allow marketplace to complete missing roles.
+    const pool = [...wardrobeItems, ...marketplaceProducts];
+    const completed = withMarketplaceFlags(generateCandidates(pool, context, profile, config));
+    for (const outfit of completed) {
+      if (!outfit.marketplace_ids?.length) continue;
+      if (outfit.marketplace_ids.length > maxPerOutfit) continue;
+      // Drop mixes that clash with whatever wardrobe pieces are present.
+      const wardrobePieces = outfit.items.filter((item) => item.source !== "marketplace");
+      const marketPieces = outfit.items.filter((item) => item.source === "marketplace");
+      if (
+        wardrobePieces.length &&
+        marketPieces.some((product) => !productFitsOutfitCore({ items: wardrobePieces, roles: {} }, product))
+      ) {
+        continue;
+      }
+      push(outfit);
     }
   }
 
-  // Incomplete wardrobe completion: generate from marketplace-filled missing roles only.
-  if (!wardrobeOnly.length) {
-    const completed = withMarketplaceFlags(generateCandidates(pool, context, profile, config));
-    for (const outfit of completed) push(outfit);
-  }
-
   mixed.sort((a, b) => a.outfitId.localeCompare(b.outfitId));
+  // Closet-first ordering: wardrobe outfits lead; market gap-fills trail for the ranker.
   const all = [...wardrobeOnly, ...mixed];
-  // Prefer stable id order then let ranker sort by score.
-  all.sort((a, b) => a.outfitId.localeCompare(b.outfitId));
   return { wardrobeOnly, mixed, all: all.slice(0, config.maxCandidates) };
 }
 
@@ -118,4 +161,34 @@ export function publicMarketplaceItems(outfit) {
       colors: item.colors,
       image_url: item.imageUrl ?? null,
     }));
+}
+
+/** Buy suggestions that are not already worn in the selected outfits. */
+export function publicBuySuggestions(retrieved, selectedOutfits, limit = 6) {
+  const worn = new Set();
+  for (const outfit of selectedOutfits ?? []) {
+    for (const id of outfit.marketplace_ids ?? []) worn.add(id);
+  }
+  const out = [];
+  for (const row of retrieved ?? []) {
+    const product = row.product;
+    if (!product?.id || worn.has(product.id)) continue;
+    out.push({
+      product_id: product.productId ?? product.id,
+      role: product.role,
+      category: product.category,
+      subcategory: product.subcategory,
+      name: product.name ?? null,
+      price: product.price,
+      currency: product.currency ?? "USD",
+      brand: product.brand,
+      sizes: product.sizes ?? [],
+      colors: product.colors,
+      image_url: product.imageUrl ?? null,
+      reason: "Pairs with looks from your closet",
+      score: row.score,
+    });
+    if (out.length >= limit) break;
+  }
+  return out;
 }

@@ -13,7 +13,12 @@ import {
   MemoryMarketplaceCatalog,
 } from "./marketplace/catalog.js";
 import { filterMarketplaceProducts } from "./marketplace/constraints.js";
-import { generateMixedCandidates, publicMarketplaceItems, summarizeMarketplaceUsage } from "./marketplace/mix.js";
+import {
+  generateMixedCandidates,
+  publicBuySuggestions,
+  publicMarketplaceItems,
+  summarizeMarketplaceUsage,
+} from "./marketplace/mix.js";
 import { retrieveComplements } from "./marketplace/retrieve.js";
 import { applyClimateDefaults, weatherAdvice } from "./weather/defaults.js";
 import { recommendationIdFor } from "./ids.js";
@@ -309,6 +314,7 @@ export function recommend(request, deps = {}) {
 
   let generated;
   let marketplaceRejected = [];
+  let retrievedComplements = [];
   if (marketplaceOn) {
     const catalog = resolveMarketplaceCatalog(value, deps, config);
     const rawProducts = catalog ? catalog.list() : [];
@@ -323,11 +329,18 @@ export function recommend(request, deps = {}) {
     const filtered = filterMarketplaceProducts(rawProducts, constraints, value.context, config);
     marketplaceRejected = filtered.rejected;
     const limit = marketplaceOpts?.maxProducts ?? config.marketplaceMaxProducts ?? 24;
-    const retrieved = retrieveComplements(filtered.accepted, eligible, value.context, constraints, limit);
-    const products = retrieved.map((row) => row.product);
+    retrievedComplements = retrieveComplements(
+      filtered.accepted,
+      eligible,
+      value.context,
+      constraints,
+      limit,
+    );
+    const products = retrievedComplements.map((row) => row.product);
     rankingMeta.marketplace_products_considered = products.length;
     rankingMeta.marketplace_rejected = marketplaceRejected.length;
 
+    // Closet-first: mixed outfits only gap-fill missing roles (see mix.js).
     const includeMixed = marketplaceOpts?.includeMixed !== false;
     if (includeMixed && products.length) {
       const mixConfig = {
@@ -362,20 +375,28 @@ export function recommend(request, deps = {}) {
     value.context.weather?.condition === "snow" ||
     value.context.weather?.condition === "cold" ||
     (typeof tempC === "number" && tempC <= (config.coldTempC ?? 18));
-  // When Market can fill a layer, never lead with a bare short-sleeve look.
-  const rankedForSelect =
-    coolNeed && marketplaceOn
-      ? (() => {
-          const layered = ranked.filter((outfit) => outfit.roles?.outerwear);
-          return layered.length ? [...layered, ...ranked.filter((outfit) => !outfit.roles?.outerwear)] : ranked;
-        })()
-      : ranked;
+  // Closet-first: wardrobe-only leads. Prefer owned layers on cool days before shop fills.
+  const rankedForSelect = (() => {
+    const wardrobe = ranked.filter((outfit) => !outfit.mixed);
+    const mixed = ranked.filter((outfit) => outfit.mixed);
+    const preferLayer = (rows) => {
+      if (!coolNeed) return rows;
+      const layered = rows.filter((outfit) => outfit.roles?.outerwear);
+      if (!layered.length) return rows;
+      return [...layered, ...rows.filter((outfit) => !outfit.roles?.outerwear)];
+    };
+    if (wardrobe.length) return [...preferLayer(wardrobe), ...preferLayer(mixed)];
+    return preferLayer(ranked);
+  })();
   const selected = selectDiverse(rankedForSelect, value.limit, config);
   rankingMeta.feedback_applied = selected.some((outfit) => outfit.feedback_applied);
   rankingMeta.personalization_applied = selected.some((outfit) => outfit.personalization_applied);
   const usage = summarizeMarketplaceUsage(selected);
   rankingMeta.marketplace_products_used = usage.product_ids.length;
   rankingMeta.marketplace_mixed_outfits = usage.mixed_outfits;
+  const buySuggestions = marketplaceOn
+    ? publicBuySuggestions(retrievedComplements, selected, 6)
+    : [];
   if (usage.product_ids.length && useLearned) {
     rankingMeta.method = usePersonalization
       ? "learned_mlp_plus_linucb_marketplace"
@@ -428,8 +449,10 @@ export function recommend(request, deps = {}) {
       });
     } else {
       message = mixedSelected
-        ? "Outfit mixes your closet with marketplace pieces."
-        : "Recommendations use garments from the supplied wardrobe.";
+        ? "Completed a closet look with a marketplace fill for a missing piece."
+        : buySuggestions.length
+          ? "Recommendations use your closet; shop picks are buy suggestions only."
+          : "Recommendations use garments from the supplied wardrobe.";
     }
   } else if (weatherBlocked) {
     message = cold || wet
@@ -448,6 +471,7 @@ export function recommend(request, deps = {}) {
     warnings,
     excluded_items: excluded,
     marketplace_excluded: marketplaceRejected.slice(0, 20),
+    marketplace_suggestions: buySuggestions,
     weather: {
       temperature_c: typeof tempC === "number" ? tempC : null,
       advice,

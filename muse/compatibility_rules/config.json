@@ -8,6 +8,6 @@
     "formal": { "reject_formality": ["casual", "athletic"] },
     "casual": { "reject_formality": ["formal"] },
     "work": { "reject_formality": ["athletic"] },
-    "smart-casual": { "reject_formality": ["athletic"] }
+    "smart-casual": { "reject_formality": ["athletic", "formal"] }
   }
 }

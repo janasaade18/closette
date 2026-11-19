@@ -93,14 +93,15 @@ describe("phase 3 marketplace intelligence", () => {
     assert.ok(ranked[0].score >= ranked[ranked.length - 1].score);
   });
 
-  it("returns mixed wardrobe + marketplace outfits when enabled", () => {
+  it("keeps complete closet looks wardrobe-first and surfaces shop as suggestions", () => {
     const config = defaultConfig();
     config.personalization = "baseline";
     const result = recommend(
       request(wardrobe(), {
         limit: 5,
         weather: { temperature_c: 12 },
-        occasion: "work",
+        occasion: "casual",
+        profile: { gender: "male" },
         marketplace: { enabled: true, budget_max: 200, sizes: ["M", "42"], include_mixed: true },
         marketplace_products: catalog,
       }),
@@ -109,10 +110,39 @@ describe("phase 3 marketplace intelligence", () => {
     assert.equal(result.statusCode, 200);
     assert.equal(result.body.ranking.marketplace_enabled, true);
     assert.ok(result.body.ranking.marketplace_products_considered >= 1);
+    assert.ok(Array.isArray(result.body.marketplace_suggestions));
+    const top = result.body.recommendations[0];
+    assert.ok(top);
+    // Complete casual closet should not wear a work blazer in the same look.
+    if (top.mixed) {
+      assert.equal(
+        top.marketplace_items.some((item) => item.product_id === "mkt-blazer-01"),
+        false,
+      );
+    }
+  });
+
+  it("gap-fills missing footwear from marketplace when closet has no shoes", () => {
+    const config = defaultConfig();
+    config.personalization = "baseline";
+    const incomplete = [
+      piece("top", "top-a", { formality: "casual", colors: { primary: "navy" } }),
+      piece("bottom", "bottom-a", { formality: "casual", colors: { primary: "blue" } }),
+    ];
+    const result = recommend(
+      request(incomplete, {
+        limit: 5,
+        weather: { temperature_c: 18 },
+        occasion: "casual",
+        marketplace: { enabled: true, budget_max: 200, sizes: ["42"], include_mixed: true },
+        marketplace_products: catalog,
+      }),
+      { config, store: new MemoryMuseStore() },
+    );
+    assert.equal(result.statusCode, 200);
     const mixed = result.body.recommendations.filter((outfit) => outfit.mixed);
     assert.ok(mixed.length >= 1);
-    assert.ok(mixed.some((outfit) => outfit.marketplace_items.length >= 1));
-    assert.ok(mixed.some((outfit) => outfit.reason_codes.includes("marketplace")));
+    assert.ok(mixed.some((outfit) => outfit.marketplace_items.some((item) => item.role === "footwear")));
   });
 
   it("respects budget so expensive coats drop out", () => {

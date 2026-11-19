@@ -76,8 +76,8 @@ function formalityCohesion(product, wardrobeItems) {
   if (productRank == null) return 0.7;
   const gap = Math.abs(productRank - bias);
   if (gap <= 1) return 1;
-  if (gap <= 1.5) return 0.55;
-  return 0.15;
+  if (gap <= 1.5) return 0.4;
+  return 0.05;
 }
 
 function weatherLayerBoost(product, context) {
@@ -132,6 +132,8 @@ export function retrieveComplements(products, wardrobeItems, context, constraint
       const scored = complementScore(product, wardrobeItems, context, constraints);
       return { product, ...scored };
     })
+    // Drop hard formality clashes (suit/blazer vs jeans+tee) from buy suggestions too.
+    .filter((row) => (row.parts?.cohesion ?? 1) >= 0.5)
     .sort((a, b) => b.score - a.score || a.product.id.localeCompare(b.product.id));
   return ranked.slice(0, Math.max(0, limit));
 }

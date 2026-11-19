@@ -24,9 +24,13 @@ export function productPassesConstraints(product, constraints, context, config) 
     return { ok: false, reason: "out_of_stock" };
   }
   const userGender = normalizeGender(constraints.gender ?? constraints.profileGender);
-  const productGender = normalizeGender(product.gender) ?? "unisex";
-  if (userGender && userGender !== "unisex" && productGender !== "unisex" && productGender !== userGender) {
-    return { ok: false, reason: "gender_mismatch" };
+  const productGender = normalizeGender(product.gender);
+  // When the user set male/female in onboarding, keep opposite-gender SKUs out.
+  // Unisex / unset product gender still passes; gendered mismatch does not.
+  if (userGender && userGender !== "unisex") {
+    if (productGender && productGender !== "unisex" && productGender !== userGender) {
+      return { ok: false, reason: "gender_mismatch" };
+    }
   }
   if (product.availability === "laundry" || product.availability === "unavailable") {
     return { ok: false, reason: "unavailable" };
