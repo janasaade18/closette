@@ -32,16 +32,27 @@ def extract_colors(
     if pixels.size == 0 or pixels.shape[0] < 2 or pixels.shape[1] < 2:
         raise ValueError("garment crop is empty")
 
-    flat = normalize_lighting(pixels).reshape(-1, 3)
+    mask_crop = None
     if mask is not None:
         mask_crop = _crop_mask(mask, box, pixels.shape[0], pixels.shape[1])
+
+    # Undo warm/cool lamp cast first, then flatten shading for clustering.
+    # Name/hex come from the balanced midtones so the label tracks the fabric,
+    # not the room light — without washing mid-grey into off-white.
+    balanced = correct_illuminant(pixels, mask=mask_crop)
+    display = balanced.reshape(-1, 3)
+    flat = normalize_lighting(balanced).reshape(-1, 3)
+    if mask_crop is not None:
         keep = mask_crop.reshape(-1) > 0
         if int(keep.sum()) >= k:
             flat = flat[keep]
+            display = display[keep]
 
     if len(flat) > sample_cap:
         rng = np.random.default_rng(0)
-        flat = flat[rng.choice(len(flat), sample_cap, replace=False)]
+        pick = rng.choice(len(flat), sample_cap, replace=False)
+        flat = flat[pick]
+        display = display[pick]
 
     lab = rgb_to_lab(flat / 255.0)
     features = np.column_stack([lab[:, 0] * 0.35, lab[:, 1], lab[:, 2]])
@@ -54,9 +65,7 @@ def extract_colors(
         proportion = float(counts[index] / counts.sum())
         if proportion < min_proportion:
             continue
-        # Recover a display color from the mean RGB of the cluster, not the
-        # down-weighted feature center.
-        rgb = flat[labels == index].mean(axis=0)
+        rgb = _midtone_mean(display[labels == index])
         name = semantic_name(rgb_to_lab(rgb.reshape(1, 3) / 255.0)[0])
         hex_color = _hex(rgb)
         bucket = merged.get(name)
@@ -67,7 +76,7 @@ def extract_colors(
 
     colors = sorted(merged.values(), key=lambda item: item["proportion"], reverse=True)
     if not colors:
-        rgb = flat.mean(axis=0)
+        rgb = _midtone_mean(display)
         name = semantic_name(rgb_to_lab(rgb.reshape(1, 3) / 255.0)[0])
         colors = [{"name": name, "hex": _hex(rgb), "proportion": 1.0}]
 
@@ -89,6 +98,51 @@ def extract_colors(
     }
 
 
+def correct_illuminant(
+    rgb: np.ndarray,
+    *,
+    mask: np.ndarray | None = None,
+    strength: float = 0.7,
+) -> np.ndarray:
+    """Pull warm/cool room light toward neutral without nuking garment hue.
+
+    Illuminant is estimated from near-neutral pixels — preferably background
+    outside the garment mask (wall/floor), else neutrals anywhere in the crop.
+    No gray-world fallback on a saturated fill (that would bleach navy).
+    """
+    image = rgb.astype(np.float32)
+    flat = image.reshape(-1, 3)
+    pools: list[np.ndarray] = []
+    if mask is not None:
+        background = mask.reshape(-1) == 0
+        if int(background.sum()) >= 64:
+            pools.append(flat[background])
+    pools.append(flat)
+
+    illuminant = None
+    for pool in pools:
+        sample = pool
+        if len(sample) > 4000:
+            sample = sample[:: max(1, len(sample) // 4000)]
+        lab = rgb_to_lab(sample / 255.0)
+        chroma = np.hypot(lab[:, 1], lab[:, 2])
+        lightness = lab[:, 0]
+        neutrals = (chroma < 12.0) & (lightness > 35.0) & (lightness < 92.0)
+        if int(neutrals.sum()) >= 40:
+            illuminant = sample[neutrals].mean(axis=0)
+            break
+
+    if illuminant is None:
+        return image
+
+    illuminant = np.clip(illuminant, 12.0, None)
+    target = float(np.mean(illuminant))
+    gains = target / illuminant
+    gains = 1.0 + strength * (gains - 1.0)
+    gains = np.clip(gains, 0.72, 1.4)
+    return np.clip(image * gains.reshape(1, 1, 3), 0, 255)
+
+
 def normalize_lighting(rgb: np.ndarray) -> np.ndarray:
     """Flatten shading on a single hue. Multi-color garments are left intact so a second color is not washed out."""
     image = rgb.astype(np.float32)
@@ -101,33 +155,68 @@ def normalize_lighting(rgb: np.ndarray) -> np.ndarray:
     luminance = image.mean(axis=2)
     radius = max(4, min(image.shape[0], image.shape[1]) // 12)
     illumination = np.clip(_box_blur(luminance, radius), 12, None)
-    gain = np.clip(float(np.median(illumination)) / illumination, 0.55, 1.8)
+    # Milder gain than before — hard flatten shoved mid-greys toward off-white.
+    gain = np.clip(float(np.median(illumination)) / illumination, 0.65, 1.55)
     return np.clip(image * gain[..., None], 0, 255)
 
 
+def _midtone_mean(rgb: np.ndarray) -> np.ndarray:
+    """Average a cluster while skipping specular highlights and crushed blacks."""
+    if len(rgb) == 0:
+        return np.array([128.0, 128.0, 128.0], dtype=np.float32)
+    lab = rgb_to_lab(rgb / 255.0)
+    lightness = lab[:, 0]
+    keep = (lightness > 12.0) & (lightness < 92.0)
+    if int(keep.sum()) < max(8, len(rgb) // 20):
+        return rgb.mean(axis=0)
+    return rgb[keep].mean(axis=0)
+
+
+_NEUTRAL_SWATCHES = frozenset(
+    {"black", "white", "off-white", "grey", "charcoal", "cream"}
+)
+
+
 def semantic_name(lab: np.ndarray) -> str:
-    """Low-chroma pixels stay neutral so a cool cast does not turn black into navy."""
+    """Low-chroma pixels stay neutral so a cool cast does not turn black into navy.
+
+    Mid greys must stay "grey". Soft light blues (and other tinted pastels) must
+    NOT — a pale blue with chroma ~12 used to fall under the neutral gate and
+    become grey even when sky blue was the right name.
+    """
     chroma = float(np.hypot(lab[1], lab[2]))
+    a_star = float(lab[1])
+    b_star = float(lab[2])
+    # Clear hue at soft chroma: match chromatic swatches only (skip grey/white).
+    if 8.0 <= chroma < 18.0 and (abs(a_star) >= 6.0 or abs(b_star) >= 10.0):
+        return nearest_name(lab, exclude=_NEUTRAL_SWATCHES)
     if chroma < 14:
         lightness = float(lab[0])
         if lightness < 18:
             return "black"
-        if lightness < 32:
+        if lightness < 35:
             return "charcoal"
-        if lightness < 62:
+        if lightness < 75:
             return "grey"
-        if lightness < 82:
+        if lightness < 90:
             return "off-white"
-        if float(lab[2]) > 8:
+        if b_star > 8:
             return "cream"
         return "white"
     return nearest_name(lab)
 
 
-def nearest_name(lab: np.ndarray) -> str:
+def nearest_name(
+    lab: np.ndarray,
+    *,
+    exclude: frozenset[str] | None = None,
+) -> str:
     best_name = "grey"
     best_distance = float("inf")
+    skipped = exclude or frozenset()
     for name, rgb in SWATCHES.items():
+        if name in skipped:
+            continue
         anchor = rgb_to_lab(np.array(rgb, dtype=np.float32).reshape(1, 3) / 255.0)[0]
         distance = float(np.sum((lab - anchor) ** 2))
         if distance < best_distance:
