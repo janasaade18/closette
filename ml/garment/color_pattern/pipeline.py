@@ -165,8 +165,8 @@ def _describe(image: Image.Image, item: dict, k: int) -> dict:
         "confidence": item.get("confidence"),
         "box": box,
         "color": extract_colors(image, box=box, mask=mask, k=k),
-        "pattern": classify_pattern(image, box=box),
-        "texture": classify_texture(image, box=box),
+        "pattern": classify_pattern(image, box=box, mask=mask),
+        "texture": classify_texture(image, box=box, mask=mask),
     }
     if item.get("category") is not None:
         described["category"] = item.get("category")

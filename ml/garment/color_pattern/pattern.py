@@ -2,7 +2,7 @@
 
 When weights/pattern_mobilenet.pt is present, a fine-tuned MobileNetV3-Small
 head labels the crop. Otherwise Gabor features and the small linear head are
-used. Confidence below 0.55 returns unknown.
+used. Weak or ambiguous predictions return unknown instead of a wrong class.
 """
 
 from __future__ import annotations
@@ -28,13 +28,16 @@ PATTERN_LABELS = (
     "unknown",
 )
 
-# Was 0.55 — real phone photos often landed just under that and showed "unknown".
-MIN_CONFIDENCE = 0.42
+# Prefer abstaining over a wrong print. Weak softmax winners used to ship as
+# floral/camo/etc after the floor was dropped to 0.42.
+MIN_CONFIDENCE = 0.50
+MIN_MARGIN = 0.12
+UNRELIABLE = {"abstract_print", "other", "camouflage"}
+GEOMETRIC = {"solid", "striped", "checked", "plaid", "polka_dot", "color_block"}
 FINE_TUNE = Path(__file__).with_name("weights") / "pattern_mobilenet.pt"
 _GABOR_CACHE: dict[tuple[int, float, float], np.ndarray] = {}
 _HEAD: dict | None = None
 _CNN = None
-_CNN_TRANSFORM = None
 HEAD_CLASSES = (
     "solid",
     "striped",
@@ -46,68 +49,108 @@ HEAD_CLASSES = (
 )
 
 
-def classify_pattern(image: Image.Image, *, box: list[float] | None = None) -> dict:
-    fine_tuned = _classify_finetuned(image, box)
-    if fine_tuned is not None:
-        return fine_tuned
-    return classify_gabor(image, box=box)
+def classify_pattern(
+    image: Image.Image,
+    *,
+    box: list[float] | None = None,
+    mask: np.ndarray | None = None,
+) -> dict:
+    fine_tuned = _classify_finetuned(image, box, mask)
+    gabor = classify_gabor(image, box=box, mask=mask)
+    if fine_tuned is None:
+        return gabor
+
+    # Prefer Gabor for clear geometric patterns when the CNN is soft/confused.
+    if (
+        gabor["primary"] in GEOMETRIC
+        and gabor["primary"] != "unknown"
+        and gabor["confidence"] >= fine_tuned["confidence"]
+        and fine_tuned["confidence"] < 0.62
+    ):
+        return gabor
+    return fine_tuned
 
 
-def classify_gabor(image: Image.Image, *, box: list[float] | None = None) -> dict:
-    features = texture_features(image, box=box)
+def classify_gabor(
+    image: Image.Image,
+    *,
+    box: list[float] | None = None,
+    mask: np.ndarray | None = None,
+) -> dict:
+    features = texture_features(image, box=box, mask=mask)
     probabilities = _predict(features)
-    index = int(probabilities.argmax())
-    label = HEAD_CLASSES[index]
-    confidence = float(probabilities[index])
-    if label == "unknown" or confidence < MIN_CONFIDENCE:
-        unknown_index = HEAD_CLASSES.index("unknown")
-        return {
-            "primary": "unknown",
-            "confidence": round(float(probabilities[unknown_index]), 4),
-        }
-    return {"primary": label, "confidence": round(confidence, 4)}
+    return _decide(probabilities, HEAD_CLASSES)
 
 
-def _classify_finetuned(image: Image.Image, box: list[float] | None) -> dict | None:
+def _classify_finetuned(
+    image: Image.Image,
+    box: list[float] | None,
+    mask: np.ndarray | None,
+) -> dict | None:
     model, transform, labels = _load_finetuned()
     if model is None or transform is None or labels is None:
         return None
     import torch
 
-    crop = _crop(image, box)
+    crop = _garment_crop(image, box, mask)
     batch = transform(crop).unsqueeze(0)
     with torch.no_grad():
-        probabilities = torch.softmax(model(batch), dim=1)[0]
-    index = int(probabilities.argmax())
-    confidence = float(probabilities[index])
-    if confidence < MIN_CONFIDENCE:
+        probabilities = torch.softmax(model(batch), dim=1)[0].cpu().numpy()
+    return _decide(probabilities, labels)
+
+
+def _decide(probabilities: np.ndarray, labels: tuple[str, ...] | list[str]) -> dict:
+    order = np.argsort(probabilities)[::-1]
+    top = int(order[0])
+    second = int(order[1]) if len(order) > 1 else top
+    label = labels[top]
+    confidence = float(probabilities[top])
+    margin = float(probabilities[top] - probabilities[second]) if second != top else confidence
+
+    if label == "unknown" or confidence < MIN_CONFIDENCE or margin < MIN_MARGIN:
         return {"primary": "unknown", "confidence": round(confidence, 4)}
-    return {"primary": labels[index], "confidence": round(confidence, 4)}
+    # Untrained / noisy classes — only keep when the model is clearly sure.
+    if label in UNRELIABLE and confidence < 0.70:
+        return {"primary": "unknown", "confidence": round(confidence, 4)}
+    return {"primary": label, "confidence": round(confidence, 4)}
 
 
 def _load_finetuned():
-    global _CNN, _CNN_TRANSFORM
+    global _CNN
     if _CNN is not None:
         return _CNN
     if not FINE_TUNE.exists():
         return None, None, None
     import torch
     from torchvision import models
+    from torchvision.transforms import Compose, Normalize, Resize, ToTensor
 
     blob = torch.load(FINE_TUNE, map_location="cpu", weights_only=False)
     labels = tuple(blob["labels"])
-    weights = models.MobileNet_V3_Small_Weights.DEFAULT
     model = models.mobilenet_v3_small(weights=None)
     model.classifier[3] = torch.nn.Linear(model.classifier[3].in_features, len(labels))
     model.load_state_dict(blob["state_dict"])
     model.eval()
-    _CNN = (model, weights.transforms(), labels)
-    _CNN_TRANSFORM = weights.transforms()
+    # Letterbox-style resize (no ImageNet center-crop) so stripes/checks at the
+    # edges of a garment box are not discarded.
+    transform = Compose(
+        [
+            Resize((224, 224)),
+            ToTensor(),
+            Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        ]
+    )
+    _CNN = (model, transform, labels)
     return _CNN
 
 
-def texture_features(image: Image.Image, *, box: list[float] | None = None) -> np.ndarray:
-    crop = _crop(image, box).resize((96, 96), Image.Resampling.NEAREST)
+def texture_features(
+    image: Image.Image,
+    *,
+    box: list[float] | None = None,
+    mask: np.ndarray | None = None,
+) -> np.ndarray:
+    crop = _garment_crop(image, box, mask).resize((96, 96), Image.Resampling.NEAREST)
     rgb = np.asarray(crop, dtype=np.float32)
     gray = rgb.mean(axis=2) / 255.0
     energies = gabor_energies(gray)
@@ -214,12 +257,37 @@ def _gabor_kernel(shape: tuple[int, int], wavelength: float, angle_deg: float) -
     return frequency
 
 
-def _crop(image: Image.Image, box: list[float] | None) -> Image.Image:
+def _garment_crop(
+    image: Image.Image,
+    box: list[float] | None,
+    mask: np.ndarray | None,
+) -> Image.Image:
+    """Crop to the box and blank non-garment pixels so background does not vote."""
     crop = image.convert("RGB")
-    if not box:
+    if box:
+        x1, y1, x2, y2 = (int(value) for value in box)
+        x1 = max(0, x1)
+        y1 = max(0, y1)
+        x2 = max(x1 + 1, x2)
+        y2 = max(y1 + 1, y2)
+        crop = crop.crop((x1, y1, x2, y2))
+    else:
+        x1 = y1 = 0
+    if mask is None:
         return crop
-    x1, y1, x2, y2 = (int(value) for value in box)
-    return crop.crop((max(0, x1), max(0, y1), max(x2, x1 + 1), max(y2, y1 + 1)))
+
+    mask_arr = np.asarray(mask) > 0
+    if box:
+        mask_arr = mask_arr[y1:y2, x1:x2]
+    if mask_arr.shape[:2] != (crop.height, crop.width):
+        mask_img = Image.fromarray(mask_arr.astype(np.uint8) * 255)
+        mask_img = mask_img.resize(crop.size, Image.Resampling.NEAREST)
+        mask_arr = np.asarray(mask_img) > 0
+    if not mask_arr.any():
+        return crop
+    rgb = np.asarray(crop).copy()
+    rgb[~mask_arr] = 240  # neutral fill outside the garment
+    return Image.fromarray(rgb)
 
 
 def _region_split(rgb: np.ndarray) -> float:

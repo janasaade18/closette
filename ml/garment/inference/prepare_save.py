@@ -40,7 +40,7 @@ def prepare_wardrobe_save(pipeline, image: Image.Image, *, k: int = 6) -> dict:
     cutout = rgba_cutout(image, mask, box=typed.get("bbox"))
     buffer = io.BytesIO()
     cutout.save(buffer, format="PNG")
-    look = _describe_look(image, typed.get("bbox"), k)
+    look = _describe_look(image, typed.get("bbox"), mask, k)
     garment = {
         "group": typed.get("category"),
         "type": typed.get("subcategory"),
@@ -76,8 +76,8 @@ def _cutout_mask(pipeline, image: Image.Image):
     return localization.mask
 
 
-def _describe_look(image: Image.Image, box, k: int) -> dict:
-    """Color / pattern / texture — same heads the appearance route uses."""
+def _describe_look(image: Image.Image, box, mask, k: int) -> dict:
+    """Color / pattern / texture — mask blanks background so heads see fabric."""
     unknown = {"primary": "unknown", "confidence": 0.0}
     try:
         if str(COLOR_PATTERN) not in sys.path:
@@ -87,9 +87,9 @@ def _describe_look(image: Image.Image, box, k: int) -> dict:
         from texture import classify_texture
 
         return {
-            "color": extract_colors(image, box=box, k=k),
-            "pattern": classify_pattern(image, box=box),
-            "texture": classify_texture(image, box=box),
+            "color": extract_colors(image, box=box, mask=mask, k=k),
+            "pattern": classify_pattern(image, box=box, mask=mask),
+            "texture": classify_texture(image, box=box, mask=mask),
         }
     except Exception:
         return {"color": None, "pattern": unknown, "texture": unknown}
