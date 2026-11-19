@@ -93,6 +93,42 @@ def create_app(pipeline: GarmentPipeline | None = None) -> FastAPI:
         )
         return result
 
+    @app.post("/v1/garments/prepare")
+    async def prepare(
+        image: UploadFile = File(...),
+        k: int = Query(6, ge=1, le=12),
+    ) -> dict:
+        """Classify + RGBA cutout on the warm in-memory models (for Nest closet save)."""
+        payload = await image.read(MAX_IMAGE_BYTES + 1)
+        try:
+            photo = load_image(payload)
+        except InvalidImage as exc:
+            raise HTTPException(
+                status_code=HTTP_STATUS.get(exc.code, 400),
+                detail=error_body(exc.code, exc.message),
+            ) from exc
+        try:
+            from inference.prepare_save import prepare_wardrobe_save
+
+            result = prepare_wardrobe_save(_pipeline(app), photo, k=k)
+        except ImportError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=error_body("model_unavailable", str(exc)),
+            ) from exc
+        except ModelError as exc:
+            logger.exception("prepare failed")
+            raise HTTPException(
+                status_code=500,
+                detail=error_body("model_error", str(exc)),
+            ) from exc
+        logger.info(
+            "prepare status=%s subcategory=%s",
+            result.get("status"),
+            (result.get("garments") or [{}])[0].get("subcategory"),
+        )
+        return result
+
     @app.post("/v1/garments/corrections")
     def corrections(body: dict) -> dict:
         from feedback import CorrectionError, store_correction

@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import type { Server } from 'http';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
@@ -33,6 +34,12 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
 
+  // Closet save can take a while on first warm cutout — don't kill the socket early.
   await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
+  const server = app.getHttpServer() as Server;
+  server.setTimeout(180_000);
+  server.headersTimeout = 190_000;
+  server.requestTimeout = 180_000;
+  server.keepAliveTimeout = 120_000;
 }
 void bootstrap();

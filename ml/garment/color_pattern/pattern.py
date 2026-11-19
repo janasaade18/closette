@@ -28,7 +28,8 @@ PATTERN_LABELS = (
     "unknown",
 )
 
-MIN_CONFIDENCE = 0.55
+# Was 0.55 — real phone photos often landed just under that and showed "unknown".
+MIN_CONFIDENCE = 0.42
 FINE_TUNE = Path(__file__).with_name("weights") / "pattern_mobilenet.pt"
 _GABOR_CACHE: dict[tuple[int, float, float], np.ndarray] = {}
 _HEAD: dict | None = None
