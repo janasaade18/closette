@@ -15,4 +15,11 @@ def require_local_model(folder: Path, name: str) -> Path:
         raise FileNotFoundError(
             f"Missing {name} files in {folder}. They are stored in git. Run git lfs pull."
         )
+    has_weights = (folder / "model.safetensors").is_file() or (folder / "pytorch_model.bin").is_file()
+    if not has_weights:
+        raise FileNotFoundError(
+            f"Missing {name} weight file in {folder} (expected model.safetensors). "
+            f"From the repo root run: git lfs pull. "
+            f"Only if LFS is empty, from ml/garment run: python prefetch.py"
+        )
     return folder

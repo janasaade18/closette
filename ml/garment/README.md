@@ -16,7 +16,16 @@ From `closette/ml/garment`:
 python -m pip install -r requirements.txt
 ```
 
-FashionCLIP and SegFormer are already in `weights/fashion-clip` and `weights/segformer`. Pull those folders with Git LFS. Do not download them again. `prefetch.py` is only for replacing those copies.
+FashionCLIP and SegFormer weights live under `weights/` and are tracked with **Git LFS**.
+After every clone or machine setup, run once from the repo root:
+
+```bash
+git lfs install
+git lfs pull
+```
+
+That is enough for the whole team — you should **not** need `python prefetch.py` day to day.
+`prefetch.py` is only to replace corrupted/outdated Hub copies.
 
 Detector training also needs `ultralytics`. It is not required to run the API.
 
