@@ -1,6 +1,8 @@
+import { UnprocessableEntityException } from '@nestjs/common';
 import { EventEmitter } from 'events';
 import { spawn } from 'child_process';
 import { AppearanceService } from './appearance.service';
+import { LightingService } from './lighting.service';
 import { MlRunnerService } from './ml-runner.service';
 
 jest.mock('child_process', () => ({
@@ -26,7 +28,13 @@ function fakeProcess(stdout: string, code = 0) {
 }
 
 describe('AppearanceService', () => {
-  const service = new AppearanceService(new MlRunnerService());
+  const lighting = {
+    check: jest.fn(),
+  };
+  const service = new AppearanceService(
+    new MlRunnerService(),
+    lighting as unknown as LightingService,
+  );
   const file = {
     buffer: Buffer.from('photo'),
     mimetype: 'image/jpeg',
@@ -34,6 +42,13 @@ describe('AppearanceService', () => {
 
   beforeEach(() => {
     spawnMock.mockReset();
+    lighting.check.mockReset();
+    lighting.check.mockResolvedValue({
+      ok: true,
+      score: 1,
+      issues: [],
+      guidance: 'Lighting looks good. Keep the garment filling the frame.',
+    });
   });
 
   it('returns the pipeline JSON for a photo and classifier box', async () => {
@@ -68,6 +83,21 @@ describe('AppearanceService', () => {
     expect(args[0]).toMatch(/pipeline\.py$/);
     expect(args).toEqual(expect.arrayContaining(['--k', '6']));
     expect(args).toContain('--classification');
+  });
+
+  it('rejects bad lighting before the pipeline runs', async () => {
+    lighting.check.mockResolvedValue({
+      ok: false,
+      score: 0.2,
+      issues: ['too_dark'],
+      guidance:
+        'The photo is too dark. Move closer to a window or turn on a lamp.',
+    });
+
+    await expect(service.analyze(file, {})).rejects.toBeInstanceOf(
+      UnprocessableEntityException,
+    );
+    expect(spawnMock).not.toHaveBeenCalled();
   });
 
   it('rejects a missing photo', async () => {

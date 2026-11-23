@@ -40,8 +40,20 @@ def main() -> None:
         print(json.dumps(lighting, indent=2))
         return
 
-    # Lighting is advisory only on save. Google/stock photos and imperfect
-    # room light should still make it into the closet if a garment is found.
+    if not lighting["ok"]:
+        print(
+            json.dumps(
+                {
+                    "status": "bad_lighting",
+                    "reason": "bad_lighting",
+                    "lighting": lighting,
+                    "garments": [],
+                    "cutout_path": None,
+                }
+            )
+        )
+        return
+
     if str(COLOR_PATTERN) not in sys.path:
         sys.path.insert(0, str(COLOR_PATTERN))
     if str(GARMENT_ROOT) not in sys.path:

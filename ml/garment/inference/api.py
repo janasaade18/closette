@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from inference.contract import error_body
 from inference.pipeline import GarmentPipeline, ModelError, build_default_pipeline
 from inference.validate import MAX_IMAGE_BYTES, InvalidImage, load_image
+from quality.lighting import score_lighting
 from taxonomy import MODEL_VERSION, load_taxonomy
 
 logger = logging.getLogger("closette.garment")
@@ -68,6 +69,11 @@ def create_app(pipeline: GarmentPipeline | None = None) -> FastAPI:
                 status_code=HTTP_STATUS.get(exc.code, 400),
                 detail=error_body(exc.code, exc.message),
             ) from exc
+        lighting = score_lighting(photo)
+        if not lighting["ok"]:
+            detail = error_body("bad_lighting", lighting["guidance"])
+            detail["lighting"] = lighting
+            raise HTTPException(status_code=422, detail=detail)
         try:
             result = _pipeline(app).predict_image(
                 photo,

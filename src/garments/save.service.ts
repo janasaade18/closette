@@ -95,8 +95,19 @@ export class SaveGarmentService {
       );
       const prepared = this.parse(stdout);
 
-      // Lighting scores stay on the row for later coaching — they no longer
-      // block wardrobe saves (gallery / product photos often fail the gate).
+      if (
+        prepared.status === 'bad_lighting' ||
+        prepared.lighting?.ok === false
+      ) {
+        throw new UnprocessableEntityException({
+          message:
+            prepared.lighting?.guidance ||
+            'Lighting is too poor to read this garment. Retake the photo.',
+          code: 'bad_lighting',
+          status: 'bad_lighting',
+          lighting: prepared.lighting,
+        });
+      }
       if (prepared.status !== 'success' || !prepared.garments?.length) {
         throw new UnprocessableEntityException({
           message: prepared.reason || 'No garment found to save',

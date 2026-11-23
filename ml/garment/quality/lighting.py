@@ -1,8 +1,8 @@
 """Fast lighting check for wardrobe capture.
 
 The phone can mirror these metrics on each preview frame for a red border.
-Save prep still records the score, but does not hard-reject on lighting —
-gallery and product photos are too useful to block.
+Lighting is a hard gate for classify, appearance and save: a photo that fails
+never reaches a model.
 """
 
 from __future__ import annotations
