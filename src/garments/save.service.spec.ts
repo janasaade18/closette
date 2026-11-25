@@ -37,7 +37,7 @@ describe('SaveGarmentService', () => {
         status: 'unclear',
         reason: 'no_garment',
         lighting: {
-          ok: false,
+          ok: true,
           score: 0.2,
           issues: ['too_dark'],
           guidance: 'dark',
@@ -54,7 +54,33 @@ describe('SaveGarmentService', () => {
     expect(supabase.insertGarment).not.toHaveBeenCalled();
   });
 
-  it('uploads the cutout even when lighting score is imperfect', async () => {
+  it('rejects bad lighting before profile, upload, or insert', async () => {
+    jest.spyOn(mlRunner, 'runPython').mockResolvedValue(
+      JSON.stringify({
+        status: 'bad_lighting',
+        reason: 'bad_lighting',
+        lighting: {
+          ok: false,
+          score: 0.2,
+          issues: ['too_dark'],
+          guidance: 'The photo is too dark.',
+        },
+        garments: [],
+        cutout_path: null,
+      }),
+    );
+
+    await expect(
+      service.save(file, { profileId: '11111111-1111-1111-1111-111111111111' }),
+    ).rejects.toMatchObject({
+      response: { code: 'bad_lighting' },
+    });
+    expect(supabase.ensureProfile).not.toHaveBeenCalled();
+    expect(supabase.uploadWardrobeCutout).not.toHaveBeenCalled();
+    expect(supabase.insertGarment).not.toHaveBeenCalled();
+  });
+
+  it('uploads the cutout when lighting passes', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'closette-save-test-'));
     const cutoutPath = join(directory, 'cutout.png');
     await writeFile(cutoutPath, Buffer.from([137, 80, 78, 71]));
@@ -63,7 +89,7 @@ describe('SaveGarmentService', () => {
       JSON.stringify({
         status: 'success',
         lighting: {
-          ok: false,
+          ok: true,
           score: 0.55,
           issues: ['highlight_clip'],
           guidance: 'soft spots',

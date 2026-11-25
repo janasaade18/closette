@@ -30,11 +30,20 @@ export class HttpExceptionFilter implements ExceptionFilter {
           ? exception.message
           : 'Internal server error';
 
+    const details =
+      exceptionResponse && typeof exceptionResponse === 'object'
+        ? (exceptionResponse as { code?: unknown; lighting?: unknown })
+        : null;
+
     response.status(status).json({
       success: false,
       statusCode: status,
       message: Array.isArray(message) ? 'Validation failed' : message,
       errors: Array.isArray(message) ? message : undefined,
+      ...(typeof details?.code === 'string' ? { code: details.code } : {}),
+      ...(details && 'lighting' in details
+        ? { lighting: details.lighting }
+        : {}),
       timestamp: new Date().toISOString(),
     });
   }

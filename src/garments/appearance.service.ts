@@ -2,11 +2,13 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { AnalyzeAppearanceDto } from './dto/analyze-appearance.dto';
+import { LightingService } from './lighting.service';
 import { MlRunnerService } from './ml-runner.service';
 
 const SCRIPT_DIR = join(process.cwd(), 'ml', 'garment', 'color_pattern');
@@ -39,7 +41,10 @@ export type AppearanceResult = {
 
 @Injectable()
 export class AppearanceService {
-  constructor(private readonly mlRunner: MlRunnerService) {}
+  constructor(
+    private readonly mlRunner: MlRunnerService,
+    private readonly lighting: LightingService,
+  ) {}
 
   async analyze(
     file: Express.Multer.File | undefined,
@@ -52,6 +57,15 @@ export class AppearanceService {
     const extension = IMAGE_EXTENSIONS[file.mimetype];
     if (!extension) {
       throw new BadRequestException('Photo must be jpeg, png, or webp');
+    }
+
+    const lighting = await this.lighting.check(file);
+    if (!lighting.ok) {
+      throw new UnprocessableEntityException({
+        message: lighting.guidance,
+        code: 'bad_lighting',
+        lighting,
+      });
     }
 
     const directory = await mkdtemp(join(tmpdir(), 'closette-garment-'));

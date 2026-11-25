@@ -32,9 +32,9 @@ class ApiTest(unittest.TestCase):
         )
         self.client = TestClient(create_app(pipeline))
 
-    def _png(self) -> bytes:
+    def _png(self, color: tuple[int, int, int] = (150, 140, 130)) -> bytes:
         buffer = io.BytesIO()
-        Image.new("RGB", (80, 80), (10, 20, 30)).save(buffer, format="PNG")
+        Image.new("RGB", (80, 80), color).save(buffer, format="PNG")
         return buffer.getvalue()
 
     def test_health_and_taxonomy(self) -> None:
@@ -72,6 +72,18 @@ class ApiTest(unittest.TestCase):
         )
         self.assertEqual(empty.status_code, 400)
         self.assertEqual(empty.json()["status"], "error")
+
+    def test_bad_lighting_never_calls_the_model(self) -> None:
+        client = TestClient(create_app(GarmentPipeline(Boom())))
+        response = client.post(
+            "/v1/garments/classify",
+            files={"image": ("dark.png", self._png((10, 20, 30)), "image/png")},
+        )
+        self.assertEqual(response.status_code, 422)
+        body = response.json()
+        self.assertEqual(body["error"], "bad_lighting")
+        self.assertFalse(body["lighting"]["ok"])
+        self.assertIn("too_dark", body["lighting"]["issues"])
 
     def test_model_error_is_500(self) -> None:
         client = TestClient(create_app(GarmentPipeline(Boom())))
