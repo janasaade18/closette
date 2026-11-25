@@ -7,6 +7,7 @@ import { GarmentsModule } from './garments/garments.module';
 import { ScansModule } from './scans/scans.module';
 import { ShoesModule } from './shoes/shoes.module';
 import { BrandsModule } from './brands/brands.module';
+import { MuseModule } from './muse/muse.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { BrandsModule } from './brands/brands.module';
     GarmentsModule,
     ShoesModule,
     BrandsModule,
+    MuseModule,
   ],
   controllers: [AppController],
   providers: [AppService],
